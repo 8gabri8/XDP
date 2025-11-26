@@ -1,0 +1,25 @@
+[project]
+name = "xdp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "abc-atlas-access[notebooks]",
+    "cell-type-mapper",
+    "igraph>=1.0.0",
+    "leidenalg>=0.11.0",
+    "rpy2>=3.6.4",
+    "scanpy>=1.11.5",
+    "scrublet>=0.2.3",
+    "upsetplot>=0.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]
+
+[tool.uv.sources]
+cell-type-mapper = { git = "https://github.com/alleninstitute/cell_type_mapper.git", rev = "rc/v1.5.2" }
+abc-atlas-access = { git = "https://github.com/alleninstitute/abc_atlas_access.git" }
