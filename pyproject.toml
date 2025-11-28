@@ -23,3 +23,24 @@ dev = [
 [tool.uv.sources]
 cell-type-mapper = { git = "https://github.com/alleninstitute/cell_type_mapper.git", rev = "rc/v1.5.2" }
 abc-atlas-access = { git = "https://github.com/alleninstitute/abc_atlas_access.git" }
+
+
+
+
+# Manually added
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["utils"]
+
+[tool.setuptools.package-dir]
+# This tells setuptools where to find the packages (current directory)
+"" = "."
+
+
+
+
+
+
