@@ -5,7 +5,9 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+from sklearn.mixture import GaussianMixture
+from scipy.stats import norm
+from diptest import diptest
 
 
 def plot_qc_metrics(adata):
@@ -180,12 +182,11 @@ def show_top_pc_genes(adata, n_pcs=3, top_n=10):
     # PCs are capturing real biological variation: copy PC values into adata.obs
     for i in range(n_pcs):
         adata.obs[f'PC{i+1}'] = adata.obsm['X_pca'][:, i]
-
     # Plot UMAP colored by those PCs (keeps the original call but with the selected PCs)
     sc.pl.umap(adata, color=[f'PC{i+1}' for i in range(n_pcs)], cmap='RdBu_r')
 
 
-def plot_cell_type(adata, ANNOTATION_LEVEL):
+def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
 
     subclasses = adata.obs[ANNOTATION_LEVEL].value_counts().index.to_list()
     n_subclasses = len(subclasses)
@@ -202,10 +203,13 @@ def plot_cell_type(adata, ANNOTATION_LEVEL):
         adata.obs["temp_highlight"] = adata.obs[ANNOTATION_LEVEL].apply(
             lambda x: s if x == s else 'Other'
         )
+        adata_spatial.obs["temp_highlight"] = adata.obs[ANNOTATION_LEVEL].apply(
+            lambda x: s if x == s else 'Other'
+        )
         
         # Spatial plot (left side: columns 0, 2, 4, ...)
         sc.pl.embedding(
-            adata, 
+            adata_spatial, 
             basis="spatial", 
             color="temp_highlight", 
             palette={'Other': 'lightgray', s: 'red'}, 
@@ -272,8 +276,114 @@ def plot_cell_type_distribution(adata, annotation_levels=["Class_name"]):
         plt.tight_layout()
         plt.show()
 
+def plot_cell_type_distribution_per_cluster(adata, ANNOTATION_LEVEL, CLUSTER_LEVEL):
+
+    # Calculate cell type composition for each cluster
+    cluster_composition = pd.crosstab(
+        adata.obs[CLUSTER_LEVEL], 
+        adata.obs[ANNOTATION_LEVEL]
+    )
+
+    # Convert to percentages
+    cluster_composition_pct = cluster_composition.div(cluster_composition.sum(axis=1), axis=0) * 100
+
+    # Plot 1: Stacked bar chart (percentage)
+    fig, axes = plt.subplots(2,1, figsize=(20, 12))
+
+    cluster_composition_pct.plot(
+        kind='bar', 
+        stacked=True, 
+        ax=axes[0],
+        colormap='tab20'
+    )
+    axes[0].set_title(f'Cell Type Composition per {CLUSTER_LEVEL} (Percentage)')
+    axes[0].set_xlabel('Cluster')
+    axes[0].set_ylabel('Percentage (%)')
+    axes[0].legend(title=ANNOTATION_LEVEL, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=45, ha='right')
+
+    # Plot 2: Stacked bar chart (absolute counts)
+    cluster_composition.plot(
+        kind='bar', 
+        stacked=True, 
+        ax=axes[1],
+        colormap='tab20'
+    )
+    axes[1].set_title(f'Cell Type Composition per {CLUSTER_LEVEL} (Counts)')
+    axes[1].set_xlabel('Cluster')
+    axes[1].set_ylabel('Number of cells')
+    axes[1].legend(title=ANNOTATION_LEVEL, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=45, ha='right')
+
+    plt.tight_layout()
+    plt.show()
+
+    # # Print summary: dominant cell type per cluster
+    # print("\nDominant cell type per cluster:")
+    # for cluster in cluster_composition_pct.index:
+    #     dominant_type = cluster_composition_pct.loc[cluster].idxmax()
+    #     percentage = cluster_composition_pct.loc[cluster, dominant_type]
+    #     count = cluster_composition.loc[cluster, dominant_type]
+    #     total = cluster_composition.loc[cluster].sum()
+    #     print(f"  Cluster {cluster}: {dominant_type} ({count}/{total} cells, {percentage:.1f}%)")
 
 
+def plot_cluster_and_get_valley(ax, scores, cluster, gmm, is_bimodal, p_value, score_col):
+    """Plot histogram, Gaussians, and threshold if bimodal"""
+
+    ################################
+
+    def find_valley_threshold(scores, gmm):
+        """Find the minimum (valley) between two Gaussian peaks"""
+
+        # build the 2 gaussians
+        means = np.sort(gmm.means_.flatten())
+        stds = np.sqrt(gmm.covariances_.flatten()[np.argsort(gmm.means_.flatten())])
+        weights = gmm.weights_[np.argsort(gmm.means_.flatten())]
+        
+        # Evaluate mixture PDF between the two means
+        x = np.linspace(means[0], means[1], 2000)
+        pdf = (weights[0] * norm.pdf(x, means[0], stds[0]) + 
+            weights[1] * norm.pdf(x, means[1], stds[1]))
+        
+        return x[np.argmin(pdf)] # find valley as lowest porint bryween the 2 gaussianns (summed)
+
+    ################################
+
+    # Histogram
+    ax.hist(scores, bins=50, density=True, alpha=0.6, color='gray', edgecolor='black')
+    
+    # Fit Gaussians
+    means = np.sort(gmm.means_.flatten())
+    stds = np.sqrt(gmm.covariances_.flatten()[np.argsort(gmm.means_.flatten())])
+    weights = gmm.weights_[np.argsort(gmm.means_.flatten())]
+    
+    x = np.linspace(scores.min(), scores.max(), 1000)
+    
+    # Plot individual Gaussians
+    for i in range(2):
+        ax.plot(x, weights[i] * norm.pdf(x, means[i], stds[i]), 
+                '--', linewidth=2, alpha=0.7)
+    
+    # Plot mixture
+    pdf_total = sum(weights[i] * norm.pdf(x, means[i], stds[i]) for i in range(2))
+    ax.plot(x, pdf_total, 'k-', linewidth=2, alpha=0.5)
+    
+    # Threshold if bimodal
+    threshold = None
+    if is_bimodal:
+        threshold = find_valley_threshold(scores, gmm)
+        ax.axvline(threshold, color='red', linewidth=3, label=f'Thr: {threshold:.3f}')
+        ax.legend(fontsize=8)
+    
+    # Title with p-value
+    sig = '***' if p_value < 0.001 else '**' if p_value < 0.01 else '*' if p_value < 0.05 else 'ns'
+    title = f"Cluster {cluster} {'✓ BIMODAL' if is_bimodal else ''}\np = {p_value:.4f} {sig}"
+    ax.set_title(title, fontweight='bold', color='red' if is_bimodal else 'black', fontsize=10)
+    ax.set_xlabel(score_col, fontsize=9)
+    ax.set_ylabel('Density', fontsize=9)
+    
+    return threshold
 
 
 

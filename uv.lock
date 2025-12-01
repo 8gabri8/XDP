@@ -391,6 +391,30 @@ wheels = [
 ]
 
 [[package]]
+name = "diptest"
+version = "0.10.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "psutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/9f/c348b6975108852c4b843d66dfc935419c5321472e11f47b06b60e5c0ac7/diptest-0.10.0.tar.gz", hash = "sha256:c1384cd2ba67d97024cc964a86e5b083a33ca9e25d60f79f30ae2676460e4c3d", size = 87934, upload-time = "2025-07-10T13:12:03.545Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/42/65/69b3c77d39c62cfb8e14cf838e14c83cf582fa1e7216ab13cee87561b863/diptest-0.10.0-cp311-cp311-macosx_12_0_arm64.whl", hash = "sha256:4325af9de722bf79e7f8d6b51c2876d4f266a81de27dd31f4106ea5050c990b8", size = 371395, upload-time = "2025-07-10T13:11:37.282Z" },
+    { url = "https://files.pythonhosted.org/packages/63/aa/31085183850d5af59fc10a4d56366179f306613f22313424c8ed017d513b/diptest-0.10.0-cp311-cp311-macosx_12_0_x86_64.whl", hash = "sha256:48da174ec4d83fc71cf416bfd40476a33f8a684f101580441a1b778630427171", size = 413518, upload-time = "2025-07-10T13:11:38.767Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/86/943ca04ba5cd71b63287a313b90551d4ebddacc43bfb7efde2742eb18df7/diptest-0.10.0-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c796cecc79e7651249234b96ab6ed2ab99cc83811f2dad6019ba3d5467f7b06f", size = 222121, upload-time = "2025-07-10T13:11:40.26Z" },
+    { url = "https://files.pythonhosted.org/packages/87/70/24645e56964fcb713d8f9502b2634340290a1f68445c9d61f90c432bb623/diptest-0.10.0-cp311-cp311-win_amd64.whl", hash = "sha256:c26f4b6346526db125801033e7c6f37ba01c89af1db4833f3e194fc6758b3db7", size = 392147, upload-time = "2025-07-10T13:11:41.805Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/e7/b8d2dd3215153b1ada8133b034963b04883cad31cc8c8ad29b9baa9785f3/diptest-0.10.0-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:db5e918fa5828d301efaf2941e84c2f05b954698325463e68fce79204c46ee52", size = 370811, upload-time = "2025-07-10T13:11:43.002Z" },
+    { url = "https://files.pythonhosted.org/packages/17/4f/dbc36de6c3a36b31d31da36be8ee4ab682f39426d103a9b33f0d9fdf3f1a/diptest-0.10.0-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:0057f162aa7fc5578947f098017bd10b6c4c47c11901a16d290e0dd0c08a9d66", size = 412339, upload-time = "2025-07-10T13:11:44.206Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/f5/c5f0c4ec6283ce6e460508b14ac5d520e2dc7204f7e539177635901a0831/diptest-0.10.0-cp312-cp312-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c004663cc866bff95b3548a22fea26e247e55e4ef99d51e67e93fc11c0a16209", size = 222724, upload-time = "2025-07-10T13:11:45.497Z" },
+    { url = "https://files.pythonhosted.org/packages/99/bd/f67fde6a4ea8b3bc48e512a1822d4e6b47d7e55f5108add23685236cfe92/diptest-0.10.0-cp312-cp312-win_amd64.whl", hash = "sha256:fe72393a4fca06e55bd20cf86b07a4a7c9adfd41b9a767f74121753d3e765932", size = 392813, upload-time = "2025-07-10T13:11:46.897Z" },
+    { url = "https://files.pythonhosted.org/packages/22/30/0d5e1b2f73cf8c89830b0771f87f8d689c6fd98549b251fa979c4bcb8634/diptest-0.10.0-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:7b60d0b564c6238e4400ed7e88b9aeaf4517419f6024bb9d0c42891647226a9b", size = 370849, upload-time = "2025-07-10T13:11:48Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/1c/1e843eed31d6aa1675e81d18cb22c70f2005b1aa12d29982127883f4ac3d/diptest-0.10.0-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:6e83a6543c681a3abfa87ecd72265f989ad79b45d6c3ee0dfa64c558c69b8453", size = 412407, upload-time = "2025-07-10T13:11:49.173Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/31/3c3d31981c8c252056b353de7a39b0bf65f41779f4834c66ecb08a25752e/diptest-0.10.0-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d7ab3748791aed0f73b244748a54bea6ef4887ab2c75820e9e9c0a9585dbfa0f", size = 222597, upload-time = "2025-07-10T13:11:50.313Z" },
+    { url = "https://files.pythonhosted.org/packages/65/e0/1364ba4e9696d76219490dc12eb72a684eef1b909cc27dc59c92c6189203/diptest-0.10.0-cp313-cp313-win_amd64.whl", hash = "sha256:845c0059c0b412033f0891bebd97b55c8f86aa7fb86fb4147261bc8714896902", size = 392800, upload-time = "2025-07-10T13:11:51.83Z" },
+]
+
+[[package]]
 name = "donfig"
 version = "0.8.1.post1"
 source = { registry = "https://pypi.org/simple" }
@@ -1998,6 +2022,7 @@ wheels = [
 name = "simpleitk"
 version = "2.5.3"
 source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/2b/6d48d5d8e9876edbd706b7da8a87ba5148e3458e98dfe2afa6af3b5e199e/simpleitk-2.5.3.tar.gz", hash = "sha256:859c15d9865120a5668952ec4da63393203b978008697907fc3bb3c8329aaa32", size = 2087079, upload-time = "2025-11-26T16:15:26.143Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/bf/31c0d48389cf7599f793bd6c2ed8a5047fdaba5538501062bd07ee78bc87/simpleitk-2.5.3-cp311-abi3-macosx_10_9_x86_64.whl", hash = "sha256:eda739126d3cdda29266b722c3bb182a534ee4b4b60a6e565c20e1ebbd7ca2da", size = 44622636, upload-time = "2025-11-21T13:42:03.904Z" },
     { url = "https://files.pythonhosted.org/packages/da/f5/aaaf24206d325a0b685a60e411877272e947607a5216a6f56643212571e5/simpleitk-2.5.3-cp311-abi3-macosx_11_0_arm64.whl", hash = "sha256:5438fb87b7e3380b1ba02b2447bf9f474560b51a649b2ad6973195c6515a43a5", size = 38516574, upload-time = "2025-11-21T13:42:07.902Z" },
@@ -2228,10 +2253,11 @@ wheels = [
 [[package]]
 name = "xdp"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "abc-atlas-access", extra = ["notebooks"] },
     { name = "cell-type-mapper" },
+    { name = "diptest" },
     { name = "igraph" },
     { name = "leidenalg" },
     { name = "rpy2" },
@@ -2249,6 +2275,7 @@ dev = [
 requires-dist = [
     { name = "abc-atlas-access", extras = ["notebooks"], git = "https://github.com/alleninstitute/abc_atlas_access.git" },
     { name = "cell-type-mapper", git = "https://github.com/alleninstitute/cell_type_mapper.git?rev=rc%2Fv1.5.2" },
+    { name = "diptest", specifier = ">=0.10.0" },
     { name = "igraph", specifier = ">=1.0.0" },
     { name = "leidenalg", specifier = ">=0.11.0" },
     { name = "rpy2", specifier = ">=3.6.4" },
