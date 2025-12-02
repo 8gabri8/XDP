@@ -203,7 +203,7 @@ def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
         adata.obs["temp_highlight"] = adata.obs[ANNOTATION_LEVEL].apply(
             lambda x: s if x == s else 'Other'
         )
-        adata_spatial.obs["temp_highlight"] = adata.obs[ANNOTATION_LEVEL].apply(
+        adata_spatial.obs["temp_highlight"] = adata_spatial.obs[ANNOTATION_LEVEL].apply(
             lambda x: s if x == s else 'Other'
         )
         
@@ -213,6 +213,7 @@ def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
             basis="spatial", 
             color="temp_highlight", 
             palette={'Other': 'lightgray', s: 'red'}, 
+            na_color='#CCCCCC',  # Different shade to avoid conflict
             ax=axes[i*2], 
             show=False, 
             legend_loc=None, 
@@ -226,6 +227,7 @@ def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
             basis="X_umap", 
             color="temp_highlight", 
             palette={'Other': 'lightgray', s: 'red'}, 
+            na_color='#CCCCCC',  # Different shade to avoid conflict
             ax=axes[i*2 + 1], 
             show=False, 
             legend_loc=None,
@@ -236,8 +238,9 @@ def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
     for j in range(i*2 + 2, len(axes)):
         axes[j].axis('off')
 
-    # Clean up temp column
+    # Clean up temp column from BOTH objects
     adata.obs.drop('temp_highlight', axis=1, inplace=True)
+    adata_spatial.obs.drop('temp_highlight', axis=1, inplace=True)  # Added this line
 
     plt.tight_layout()
     plt.show()
@@ -246,7 +249,7 @@ def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
 def plot_cell_type_distribution(adata, annotation_levels=["Class_name"]):
 
     for ann in annotation_levels:
-        vc = adata.obs[ann].value_counts().sort_values(ascending=False)
+        vc = adata.obs[ann].value_counts(dropna=False).sort_values(ascending=False)
         vp = vc / vc.sum() * 100  # percentages
 
         fig, axes = plt.subplots(1, 3, figsize=(25, 6))
@@ -278,54 +281,83 @@ def plot_cell_type_distribution(adata, annotation_levels=["Class_name"]):
 
 def plot_cell_type_distribution_per_cluster(adata, ANNOTATION_LEVEL, CLUSTER_LEVEL):
 
-    # Calculate cell type composition for each cluster
+    # Convert to string to avoid categorical issues, then replace NaN
+    annotation_with_nan_label = adata.obs[ANNOTATION_LEVEL].astype(str).replace('nan', 'Not_Annotated')
+    
+    # Calculate cell type composition including "Not_Annotated"
     cluster_composition = pd.crosstab(
-        adata.obs[CLUSTER_LEVEL], 
-        adata.obs[ANNOTATION_LEVEL]
+        adata.obs[CLUSTER_LEVEL],
+        annotation_with_nan_label
     )
+    
+    # Move 'Not_Annotated' to the end if it exists
+    if 'Not_Annotated' in cluster_composition.columns:
+        cols = [col for col in cluster_composition.columns if col != 'Not_Annotated']
+        cols.append('Not_Annotated')
+        cluster_composition = cluster_composition[cols]
 
     # Convert to percentages
-    cluster_composition_pct = cluster_composition.div(cluster_composition.sum(axis=1), axis=0) * 100
+    cluster_composition_pct = cluster_composition.div(
+        cluster_composition.sum(axis=1), axis=0
+    ) * 100
 
-    # Plot 1: Stacked bar chart (percentage)
-    fig, axes = plt.subplots(2,1, figsize=(20, 12))
+    # Generate enough distinct colors
+    n_types = len(cluster_composition.columns)
+    
+    # Combine multiple colormaps to get enough distinct colors
+    import matplotlib.cm as cm
+    import matplotlib.colors as mcolors
+    
+    if n_types <= 20:
+        colors = [cm.tab20(i) for i in range(n_types)]
+    else:
+        # Combine tab20, tab20b, tab20c, and Set3 for more colors
+        colors = []
+        colors.extend([cm.tab20(i) for i in range(20)])
+        if n_types > 20:
+            colors.extend([cm.tab20b(i) for i in range(min(20, n_types - 20))])
+        if n_types > 40:
+            colors.extend([cm.tab20c(i) for i in range(min(20, n_types - 40))])
+        if n_types > 60:
+            colors.extend([cm.Set3(i) for i in range(min(12, n_types - 60))])
+        if n_types > 72:
+            # For very large numbers, use hsv colormap
+            colors.extend([cm.hsv(i/max(n_types-72, 1)) for i in range(n_types - 72)])
+    
+    # Make Not_Annotated gray if it exists
+    if 'Not_Annotated' in cluster_composition.columns:
+        colors[-1] = (0.7, 0.7, 0.7, 1.0)  # Gray color
 
+    fig, axes = plt.subplots(2, 1, figsize=(20, 12))
+
+    # Plot percentages
     cluster_composition_pct.plot(
         kind='bar', 
-        stacked=True, 
+        stacked=True,
         ax=axes[0],
-        colormap='tab20'
+        color=colors
     )
     axes[0].set_title(f'Cell Type Composition per {CLUSTER_LEVEL} (Percentage)')
     axes[0].set_xlabel('Cluster')
     axes[0].set_ylabel('Percentage (%)')
-    axes[0].legend(title=ANNOTATION_LEVEL, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    axes[0].legend(title=ANNOTATION_LEVEL, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, ncol=1)
     axes[0].set_xticklabels(axes[0].get_xticklabels(), rotation=45, ha='right')
 
-    # Plot 2: Stacked bar chart (absolute counts)
+    # Plot counts
     cluster_composition.plot(
-        kind='bar', 
-        stacked=True, 
+        kind='bar',
+        stacked=True,
         ax=axes[1],
-        colormap='tab20'
+        color=colors
     )
     axes[1].set_title(f'Cell Type Composition per {CLUSTER_LEVEL} (Counts)')
     axes[1].set_xlabel('Cluster')
     axes[1].set_ylabel('Number of cells')
-    axes[1].legend(title=ANNOTATION_LEVEL, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8)
+    axes[1].legend(title=ANNOTATION_LEVEL, bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=8, ncol=1)
     axes[1].set_xticklabels(axes[1].get_xticklabels(), rotation=45, ha='right')
 
     plt.tight_layout()
     plt.show()
-
-    # # Print summary: dominant cell type per cluster
-    # print("\nDominant cell type per cluster:")
-    # for cluster in cluster_composition_pct.index:
-    #     dominant_type = cluster_composition_pct.loc[cluster].idxmax()
-    #     percentage = cluster_composition_pct.loc[cluster, dominant_type]
-    #     count = cluster_composition.loc[cluster, dominant_type]
-    #     total = cluster_composition.loc[cluster].sum()
-    #     print(f"  Cluster {cluster}: {dominant_type} ({count}/{total} cells, {percentage:.1f}%)")
 
 
 def plot_cluster_and_get_valley(ax, scores, cluster, gmm, is_bimodal, p_value, score_col):

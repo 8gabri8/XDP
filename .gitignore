@@ -12,3 +12,5 @@ wheels/
 # Folders
 data
 data/*
+script/_old
+script/_old/*
