@@ -252,29 +252,29 @@ def plot_cell_type_distribution(adata, annotation_levels=["Class_name"]):
         vc = adata.obs[ann].value_counts(dropna=False).sort_values(ascending=False)
         vp = vc / vc.sum() * 100  # percentages
 
-        fig, axes = plt.subplots(1, 3, figsize=(25, 6))
+        fig, axes = plt.subplots(2,1, figsize=(12,8))
 
-        # log scale
-        vc.plot(kind="bar", logy=True, ax=axes[0])
-        axes[0].set_title(f"{ann} counts (log y)")
+        # # log scale
+        # vc.plot(kind="bar", logy=True, ax=axes[0])
+        # axes[0].set_title(f"{ann} counts (log y)")
+        # axes[0].set_xlabel("")
+        # axes[0].set_ylabel("Counts")
+
+        # linear scale
+        vc.plot(kind="bar", logy=False, ax=axes[0])
+        axes[0].set_title(f"{ann} counts (linear y)")
         axes[0].set_xlabel("")
         axes[0].set_ylabel("Counts")
 
-        # linear scale
-        vc.plot(kind="bar", logy=False, ax=axes[1])
-        axes[1].set_title(f"{ann} counts (linear y)")
-        axes[1].set_xlabel("")
-        axes[1].set_ylabel("Counts")
-
         # percentages
-        vp.plot(kind="bar", ax=axes[2])
-        axes[2].set_title(f"{ann} percentages")
-        axes[2].set_xlabel("")
-        axes[2].set_ylabel("Percentage (%)")
+        vp.plot(kind="bar", ax=axes[1])
+        axes[1].set_title(f"{ann} percentages")
+        axes[1].set_xlabel("")
+        axes[1].set_ylabel("Percentage (%)")
 
         # rotate all x-labels
         for ax in axes:
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=30, ha="right", fontsize=12)
 
         plt.tight_layout()
         plt.show()
