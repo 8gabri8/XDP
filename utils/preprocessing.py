@@ -101,7 +101,10 @@ def plot_qc_metrics(adata):
     plt.show()
 
 
-def preprocess(adata, n_pcs_elbow=30, n_hvg=3000):
+def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False):
+
+    if save_raw_counts:
+        adata.layers["counts"] = adata.X.copy()
 
     # Normalize & Transform --> X amtrix changes
     print("Normalizing...")
@@ -110,8 +113,9 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000):
     adata.layers["log1p_norm"] = adata.X.copy()
 
     # HVG
-    print("Findingn HCGs...")
-    sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg)
+    print("Findingn HVGs...")
+    sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg, flavor='seurat_v3', batch_key=hvg_batch_key, layer=hvg_layer) #needs raw cpount if falvour=seurat3
+        # do not remove not hvg right now! 
     sc.pl.highly_variable_genes(adata, show=True)
         # BAD: nif there is not clear seapration
 
