@@ -8,6 +8,7 @@ dependencies = [
     "abc-atlas-access[notebooks]",
     "cell-type-mapper",
     "diptest>=0.10.0",
+    "dotenv>=0.9.9",
     "igraph>=1.0.0",
     "ipywidgets>=8.1.8",
     "leidenalg>=0.11.0",

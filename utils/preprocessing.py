@@ -144,6 +144,8 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
     sc.tl.leiden(adata, resolution=1.0, key_added="leiden_3", flavor="igraph", n_iterations=2)
     sc.tl.leiden(adata, resolution=2.0, key_added="leiden_4", flavor="igraph", n_iterations=2)
 
+    print("Preprocessing done.")
+
 def show_top_pc_genes(adata, n_pcs=3, top_n=10):
 
     pcs_to_show = [f'PC{i}' for i in range(1, n_pcs + 1)]
