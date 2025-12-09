@@ -1,75 +1,297 @@
 {
   "category_all_cell_types": {
-    "_description": "Complete cell type mapping - all STR neurons grouped as 'STR Neurons'",
-    "_note": "Use this for overview analysis where STR neuron subtypes are not the focus",
-    
-    "STRd D1 Matrix MSN": "STR Neurons",
-    "STRd D2 Matrix MSN": "STR Neurons",
-    "STRv D1 MSN": "STR Neurons",
-    "STRv D2 MSN": "STR Neurons",
-    "STRd D1 Striosome MSN": "STR Neurons",
-    "STRd D2 Striosome MSN": "STR Neurons",
-    "STRv D1 NUDAP MSN": "STR Neurons",
-    "STR D1D2 Hybrid MSN": "STR Neurons",
-    "STRd D2 StrioMat Hybrid MSN": "STR Neurons",
-    
-    "STR SST-CHODL GABA": "STR Interneuron (SST)",
-    "STR SST-RSPO2 GABA": "STR Interneuron (SST)",
-    "STR SST-ADARB2 GABA": "STR Interneuron (SST)",
-    "STR FS PTHLH-PVALB GABA": "STR Interneuron (PV)",
-    "STR TAC3-PLPP4 GABA": "STR Interneuron (GABA)",
-    "STR LYPD6-RSPO2 GABA": "STR Interneuron (GABA)",
-    "STR-BF TAC3-PLPP4-LHX8 GABA": "STR Interneuron (GABA)",
-    "STRd Cholinergic GABA": "STR Interneuron (Cholinergic)",
-    "STR Cholinergic GABA": "STR Interneuron (Cholinergic)",
-    
-    "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "GPe Neuron",
-    "GPe MEIS2-SOX6 GABA": "GPe Neuron",
-    "GPe SOX6-CTXND1 GABA": "GPe Neuron",
-    "GPin-BF Cholinergic GABA": "GPi Neuron",
-    "GPi Shell": "GPi Neuron",
-    "GPi Core": "GPi Neuron",
-    
-    "SN-VTR-HTH GATA3-TCF7L2 GABA": "SN Neuron",
-    "SN EBF2 GABA": "SN Neuron",
-    "SN GATA3-PVALB GABA": "SN Neuron",
-    
-    "AMY-SLEA-BNST GABA": "Amygdala",
-    "AMY-SLEA-BNST D1 GABA": "Amygdala",
-    "OT D1 ICj": "Olfactory Tubercle",
-    
-    "ZI-HTH GABA": "ZI-Hypothalamus",
-    "VTR-HTH Glut": "ZI-Hypothalamus",
-    "BF SKOR1 Glut": "Basal Forebrain",
-    
-    "OB FRMD7 GABA": "OB",
-    "OB Dopa-GABA": "OB",
-    
-    "VIP GABA": "Cortical Interneuron",
-    "LAMP5-CXCL14 GABA": "Cortical Interneuron",
-    "LAMP5-LHX6 GABA": "Cortical Interneuron",
-    
-    "Oligo OPALIN": "Oligo",
-    "Oligo PLEKHG1": "Oligo",
-    "ImOligo": "ImOligo",
-    "COP": "COP",
-    "OPC": "OPC",
-    
+    "_description": "Biologically ordered cell type list: https://alleninstitute.github.io/abc_atlas_access/_static/HMBA-BG-taxonomy-CCN20250428/20250531/Group.html#CS20250428_GROUP_0027",
+    "_note": "Families grouped by lineage with spacing between major groups",
+
+    "_ NON-NEURONAL - ASTRO/EPEN": "",
     "Astrocyte": "Astrocyte",
     "ImAstro": "ImAstro",
-    
-    "Microglia": "Microglia",
+    "Ependymal": "Ependymal",
+
+    "_ NON-NEURONAL - IMMUNE": "",
+    "B cells": "B cells",
+    "T cells": "T cells",
     "BAM": "BAM",
-    "T cells": "T Lymphocyte",
-    "B cells": "B Lymphocyte",
+    "Microglia": "Microglia",
     "Monocyte": "Monocyte",
-    
-    "Endo": "Endothelial",
+
+    "_ NON-NEURONAL - OPC / OLIGO": "",
+    "COP": "COP",
+    "OPC": "OPC",
+    "ImOligo": "ImOligo",
+    "Oligo OPALIN": "Oligo OPALIN",
+    "Oligo PLEKHG1": "Oligo PLEKHG1",
+
+    "_ NON-NEURONAL - VASCULAR": "",
+    "Endo": "Endo",
     "Pericyte": "Pericyte",
-    "VLMC": "VLMC",
     "SMC": "SMC",
-    
-    "Ependymal": "Ependymal"
+    "VLMC": "VLMC",
+
+    "_ GLUTAMATERGIC": "",
+    "BF SKOR1 Glut": "BF SKOR1 Glut",
+    "STH PVALB-PITX2 Glut": "STH PVALB-PITX2 Glut",
+    "VTR-HTH Glut": "VTR-HTH Glut",
+
+    "_ DOPAMINERGIC": "",
+    "SN SOX6 Dopa": "SN SOX6 Dopa",
+    "SN-VTR CALB1 Dopa": "SN-VTR CALB1 Dopa",
+    "SN-VTR GAD2 Dopa": "SN-VTR GAD2 Dopa",
+
+    "_ GABAERGIC - LAMP5 / VIP": "",
+    "LAMP5-CXCL14 GABA": "LAMP5-CXCL14 GABA",
+    "VIP GABA": "VIP GABA",
+    "LAMP5-LHX6 GABA": "LAMP5-LHX6 GABA",
+
+    "_ GABAERGIC - MSN (LGE-derived)": "",
+    "STRd D1 Matrix MSN": "STRd D1 Matrix MSN",
+    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
+    "STRv D1 MSN": "STRv D1 MSN",
+
+    "STRd D2 Matrix MSN": "STRd D2 Matrix MSN",
+    "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
+    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
+    "STRv D2 MSN": "STRv D2 MSN",
+
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
+    "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+
+    "_ GABAERGIC - Interneurons": "",
+    "STR FS PTHLH-PVALB GABA": "STR FS PTHLH-PVALB GABA",
+    "STR TAC3-PLPP4 GABA": "STR TAC3-PLPP4 GABA",
+    "STR-BF TAC3-PLPP4-LHX8 GABA": "STR-BF TAC3-PLPP4-LHX8 GABA",
+    "STR LYPD6-RSPO2 GABA": "STR LYPD6-RSPO2 GABA",
+    "STR SST-RSPO2 GABA": "STR SST-RSPO2 GABA",
+    "STR SST-ADARB2 GABA": "STR SST-ADARB2 GABA",
+    "STR SST-CHODL GABA": "STR SST-CHODL GABA",
+
+    "_ GABAERGIC - Cholinergic": "",
+    "GPin-BF Cholinergic GABA": "GPin-BF Cholinergic GABA",
+    "STR Cholinergic GABA": "STR Cholinergic GABA",
+    "STRd Cholinergic GABA": "STRd Cholinergic GABA",
+
+    "_ GABAERGIC - Other / Misc": "",
+    "GPe MEIS2-SOX6 GABA": "GPe MEIS2-SOX6 GABA",
+    "OT D1 ICj": "OT D1 ICj",
+    "OB Dopa-GABA": "OB Dopa-GABA",
+    "OB FRMD7 GABA": "OB FRMD7 GABA",
+    "GPe SOX6-CTXND1 GABA": "GPe SOX6-CTXND1 GABA",
+    "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "GPe-NDB-SI LHX6-LHX8-GBX1 GABA",
+    "GPi Core": "GPi Core",
+    "GPi Shell": "GPi Shell",
+    "AMY-SLEA-BNST D1 GABA": "AMY-SLEA-BNST D1 GABA",
+    "AMY-SLEA-BNST GABA": "AMY-SLEA-BNST GABA",
+    "ZI-HTH GABA": "ZI-HTH GABA",
+    "SN GATA3-PAX8 GABA": "SN GATA3-PAX8 GABA",
+    "SN GATA3-PVALB GABA": "SN GATA3-PVALB GABA",
+    "SN-VTR-HTH GATA3-TCF7L2 GABA": "SN-VTR-HTH GATA3-TCF7L2 GABA",
+    "SN EBF2 GABA": "SN EBF2 GABA",
+    "SN SEMA5A GABA": "SN SEMA5A GABA"
+
+  },
+
+ "category_only_neurons":{
+    "_description": "All neuron cell types (non-neuronal removed)",
+    "_note": "All entries mapped to 'neuron'",
+
+    "BF SKOR1 Glut": "neuron",
+    "STH PVALB-PITX2 Glut": "neuron",
+    "VTR-HTH Glut": "neuron",
+
+    "SN SOX6 Dopa": "neuron",
+    "SN-VTR CALB1 Dopa": "neuron",
+    "SN-VTR GAD2 Dopa": "neuron",
+
+    "LAMP5-CXCL14 GABA": "neuron",
+    "VIP GABA": "neuron",
+    "LAMP5-LHX6 GABA": "neuron",
+
+    "STRd D1 Matrix MSN": "neuron",
+    "STRd D1 Striosome MSN": "neuron",
+    "STRv D1 MSN": "neuron",
+
+    "STRd D2 Matrix MSN": "neuron",
+    "STRd D2 StrioMat Hybrid MSN": "neuron",
+    "STRd D2 Striosome MSN": "neuron",
+    "STRv D2 MSN": "neuron",
+
+    "STR D1D2 Hybrid MSN": "neuron",
+    "STRv D1 NUDAP MSN": "neuron",
+
+    "STR FS PTHLH-PVALB GABA": "neuron",
+    "STR TAC3-PLPP4 GABA": "neuron",
+    "STR-BF TAC3-PLPP4-LHX8 GABA": "neuron",
+    "STR LYPD6-RSPO2 GABA": "neuron",
+    "STR SST-RSPO2 GABA": "neuron",
+    "STR SST-ADARB2 GABA": "neuron",
+    "STR SST-CHODL GABA": "neuron",
+
+    "GPin-BF Cholinergic GABA": "neuron",
+    "STR Cholinergic GABA": "neuron",
+    "STRd Cholinergic GABA": "neuron",
+
+    "GPe MEIS2-SOX6 GABA": "neuron",
+    "OT D1 ICj": "neuron",
+    "OB Dopa-GABA": "neuron",
+    "OB FRMD7 GABA": "neuron",
+    "GPe SOX6-CTXND1 GABA": "neuron",
+    "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "neuron",
+    "GPi Core": "neuron",
+    "AMY-SLEA-BNST D1 GABA": "neuron",
+    "AMY-SLEA-BNST GABA": "neuron",
+    "ZI-HTH GABA": "neuron",
+    "SN GATA3-PAX8 GABA": "neuron",
+    "SN GATA3-PVALB GABA": "neuron",
+    "SN-VTR-HTH GATA3-TCF7L2 GABA": "neuron",
+    "SN EBF2 GABA": "neuron",
+    "SN SEMA5A GABA": "neuron",
+
+    "GPi Shell": "neuron"
+  },
+
+  "category_MSN": {
+    "_description": "Medium Spiny Neurons only",
+    "_note": "All entries map to 'MSN'",
+
+    "STRd D1 Matrix MSN": "MSN",
+    "STRd D1 Striosome MSN": "MSN",
+    "STRv D1 MSN": "MSN",
+    "STRv D1 NUDAP MSN": "MSN",
+
+    "STRd D2 Matrix MSN": "MSN",
+    "STRd D2 Striosome MSN": "MSN",
+    "STRv D2 MSN": "MSN",
+    "STRd D2 StrioMat Hybrid MSN": "MSN",
+
+    "STR D1D2 Hybrid MSN": "MSN"
+  },
+
+  "category_neurons_minus_MSN": {
+    "_description": "All neuron types except MSNs",
+    "_note": "All entries map to 'non_MSN'",
+
+    "BF SKOR1 Glut": "non_MSN",
+    "STH PVALB-PITX2 Glut": "non_MSN",
+    "VTR-HTH Glut": "non_MSN",
+
+    "SN SOX6 Dopa": "non_MSN",
+    "SN-VTR CALB1 Dopa": "non_MSN",
+    "SN-VTR GAD2 Dopa": "non_MSN",
+
+    "LAMP5-CXCL14 GABA": "non_MSN",
+    "VIP GABA": "non_MSN",
+    "LAMP5-LHX6 GABA": "non_MSN",
+
+    "STR FS PTHLH-PVALB GABA": "non_MSN",
+    "STR TAC3-PLPP4 GABA": "non_MSN",
+    "STR-BF TAC3-PLPP4-LHX8 GABA": "non_MSN",
+    "STR LYPD6-RSPO2 GABA": "non_MSN",
+    "STR SST-RSPO2 GABA": "non_MSN",
+    "STR SST-ADARB2 GABA": "non_MSN",
+    "STR SST-CHODL GABA": "non_MSN",
+
+    "GPin-BF Cholinergic GABA": "non_MSN",
+    "STR Cholinergic GABA": "non_MSN",
+    "STRd Cholinergic GABA": "non_MSN",
+
+    "GPe MEIS2-SOX6 GABA": "non_MSN",
+    "OT D1 ICj": "non_MSN",
+    "OB Dopa-GABA": "non_MSN",
+    "OB FRMD7 GABA": "non_MSN",
+    "GPe SOX6-CTXND1 GABA": "non_MSN",
+    "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "non_MSN",
+    "GPi Core": "non_MSN",
+    "AMY-SLEA-BNST D1 GABA": "non_MSN",
+    "AMY-SLEA-BNST GABA": "non_MSN",
+    "ZI-HTH GABA": "non_MSN",
+    "SN GATA3-PAX8 GABA": "non_MSN",
+    "SN GATA3-PVALB GABA": "non_MSN",
+    "SN-VTR-HTH GATA3-TCF7L2 GABA": "non_MSN",
+    "SN EBF2 GABA": "non_MSN",
+    "SN SEMA5A GABA": "non_MSN",
+
+    "GPi Shell": "non_MSN"
+  },
+
+
+  "category_STR_neurons_minus_SPN": {
+    "_description": "All striatal (STR) neurons excluding all MSNs",
+    "_note": "Everything maps to 'STR_nonMSN'",
+
+    "STR FS PTHLH-PVALB GABA": "STR_nonMSN",
+    "STR TAC3-PLPP4 GABA": "STR_nonMSN",
+    "STR LYPD6-RSPO2 GABA": "STR_nonMSN",
+    "STR SST-RSPO2 GABA": "STR_nonMSN",
+    "STR SST-ADARB2 GABA": "STR_nonMSN",
+    "STR SST-CHODL GABA": "STR_nonMSN",
+    "STR Cholinergic GABA": "STR_nonMSN",
+    "STRd Cholinergic GABA": "STR_nonMSN"
+  },
+
+
+  "category_anatomical_regions": {
+    "_description": "Cell types organized by anatomical region based on nomenclature prefixes",
+    "_note": "Only includes cell types with clear anatomical localization. Values indicate region abbreviation.",
+
+    "_ STRIATUM - DORSAL": "",
+    "STRd D1 Matrix MSN": "STRd",
+    "STRd D1 Striosome MSN": "STRd",
+    "STRd D2 Matrix MSN": "STRd",
+    "STRd D2 StrioMat Hybrid MSN": "STRd",
+    "STRd D2 Striosome MSN": "STRd",
+    "STRd Cholinergic GABA": "STRd",
+
+    "_ STRIATUM - VENTRAL": "",
+    "STRv D1 MSN": "STRv",
+    "STRv D2 MSN": "STRv",
+    "STRv D1 NUDAP MSN": "STRv",
+
+    "_ STRIATUM - GENERAL / DISTRIBUTED": "",
+    "STR D1D2 Hybrid MSN": "STR",
+    "STR FS PTHLH-PVALB GABA": "STR",
+    "STR TAC3-PLPP4 GABA": "STR",
+    "STR LYPD6-RSPO2 GABA": "STR",
+    "STR SST-RSPO2 GABA": "STR",
+    "STR SST-ADARB2 GABA": "STR",
+    "STR SST-CHODL GABA": "STR",
+    "STR Cholinergic GABA": "STR",
+
+    "_ GLOBUS PALLIDUS": "",
+    "GPe MEIS2-SOX6 GABA": "GP",
+    "GPe SOX6-CTXND1 GABA": "GP",
+    "GPi Core": "GP",
+    "GPi Shell": "GP",
+
+    "_ SUBSTANTIA NIGRA": "",
+    "SN SOX6 Dopa": "SN",
+    "SN GATA3-PAX8 GABA": "SN",
+    "SN GATA3-PVALB GABA": "SN",
+    "SN EBF2 GABA": "SN",
+    "SN SEMA5A GABA": "SN",
+
+    "_ VENTRAL TEGMENTAL AREA": "",
+    "SN-VTR CALB1 Dopa": "SN-VTR",
+    "SN-VTR GAD2 Dopa": "SN-VTR",
+
+    "_ HYPOTHALAMUS": "",
+    "VTR-HTH Glut": "HTH",
+    "SN-VTR-HTH GATA3-TCF7L2 GABA": "HTH",
+    "ZI-HTH GABA": "HTH",
+
+    "_ SUBTHALAMIC NUCLEUS": "",
+    "STH PVALB-PITX2 Glut": "STH",
+
+    "_ OLFACTORY TUBERCLE": "",
+    "OT D1 ICj": "OT",
+
+    "_ OLFACTORY BULB": "",
+    "OB Dopa-GABA": "OB",
+    "OB FRMD7 GABA": "OB",
+
+    "_ EXTENDED AMYGDALA / BNST": "",
+    "AMY-SLEA-BNST D1 GABA": "AMY",
+    "AMY-SLEA-BNST GABA": "AMY"
+
   },
 
   "category_GB_only":{
@@ -84,179 +306,109 @@
     "GPi Core": "GPi Neuron"
   },
 
-  "category_neuron_only":{
-    "_description": "Cell type mapping including ONLY neurons",
-    "_note": "All entries mapped to 'neuron'",
 
-    "STRd D1 Matrix MSN": "neuron",
-    "STRd D2 Matrix MSN": "neuron",
-    "STRv D1 MSN": "neuron",
-    "STRv D2 MSN": "neuron",
-    "STRd D1 Striosome MSN": "neuron",
-    "STRd D2 Striosome MSN": "neuron",
-    "STRv D1 NUDAP MSN": "neuron",
-    "STR D1D2 Hybrid MSN": "neuron",
-    "STRd D2 StrioMat Hybrid MSN": "neuron",
+  
 
-    "STR SST-CHODL GABA": "neuron",
-    "STR SST-RSPO2 GABA": "neuron",
-    "STR SST-ADARB2 GABA": "neuron",
-    "STR FS PTHLH-PVALB GABA": "neuron",
-    "STR TAC3-PLPP4 GABA": "neuron",
-    "STR LYPD6-RSPO2 GABA": "neuron",
-    "STR-BF TAC3-PLPP4-LHX8 GABA": "neuron",
-    "STRd Cholinergic GABA": "neuron",
-    "STR Cholinergic GABA": "neuron",
 
-    "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "neuron",
-    "GPe MEIS2-SOX6 GABA": "neuron",
-    "GPe SOX6-CTXND1 GABA": "neuron",
 
-    "GPin-BF Cholinergic GABA": "neuron",
-    "GPi Shell": "neuron",
-    "GPi Core": "neuron",
 
-    "SN-VTR-HTH GATA3-TCF7L2 GABA": "neuron",
-    "SN EBF2 GABA": "neuron",
-    "SN GATA3-PVALB GABA": "neuron",
 
-    "AMY-SLEA-BNST GABA": "neuron",
-    "AMY-SLEA-BNST D1 GABA": "neuron",
 
-    "OT D1 ICj": "neuron",
-
-    "ZI-HTH GABA": "neuron",
-    "VTR-HTH Glut": "neuron",
-
-    "BF SKOR1 Glut": "neuron",
-
-    "OB FRMD7 GABA": "neuron",
-    "OB Dopa-GABA": "neuron",
-
-    "VIP GABA": "neuron",
-    "LAMP5-CXCL14 GABA": "neuron",
-    "LAMP5-LHX6 GABA": "neuron"
-  },
-
-  "category_all_neurons_minus_SPN": {
-    "_description": "Complete cell-type mapping with all STR neurons collapsed into a single class ('STR Neurons')",
-    "_note": "Use when STR neuron subtype resolution is unnecessary and global circuit-level comparisons are the goal",
-
-    "STR SST-CHODL GABA": "STR SST-CHODL GABA",
-    "STR SST-RSPO2 GABA": "STR SST-RSPO2 GABA",
-    "STR SST-ADARB2 GABA": "STR SST-ADARB2 GABA",
-    "STR FS PTHLH-PVALB GABA": "STR FS PTHLH-PVALB GABA",
-    "STR TAC3-PLPP4 GABA": "STR TAC3-PLPP4 GABA",
-    "STR LYPD6-RSPO2 GABA": "STR LYPD6-RSPO2 GABA",
-    "STR-BF TAC3-PLPP4-LHX8 GABA": "STR-BF TAC3-PLPP4-LHX8 GABA",
-    "STRd Cholinergic GABA": "STRd Cholinergic GABA",
-    "STR Cholinergic GABA": "STR Cholinergic GABA",
-
-    "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "GPe-NDB-SI LHX6-LHX8-GBX1 GABA",
-    "GPe MEIS2-SOX6 GABA": "GPe MEIS2-SOX6 GABA",
-    "GPe SOX6-CTXND1 GABA": "GPe SOX6-CTXND1 GABA",
-    "GPin-BF Cholinergic GABA": "GPin-BF Cholinergic GABA",
-    "GPi Shell": "GPi Shell",
-    "GPi Core": "GPi Core",
-
-    "SN-VTR-HTH GATA3-TCF7L2 GABA": "SN-VTR-HTH GATA3-TCF7L2 GABA",
-    "SN EBF2 GABA": "SN EBF2 GABA",
-    "SN GATA3-PVALB GABA": "SN GATA3-PVALB GABA",
-
-    "AMY-SLEA-BNST GABA": "AMY-SLEA-BNST GABA",
-    "AMY-SLEA-BNST D1 GABA": "AMY-SLEA-BNST D1 GABA",
-    "OT D1 ICj": "OT D1 ICj",
-
-    "ZI-HTH GABA": "ZI-HTH GABA",
-    "VTR-HTH Glut": "VTR-HTH Glut",
-    "BF SKOR1 Glut": "BF SKOR1 Glut",
-
-    "OB FRMD7 GABA": "OB FRMD7 GABA",
-    "OB Dopa-GABA": "OB Dopa-GABA"
-  },
-
-  "category_only_SPN": {
-    "_description": "STR neurons",
-    "_biology": "Striosome and Matrix compartments differ in molecular markers, connectivity, and functional roles; Hybrid cells show mixed features spanning both domains",
+  "category_MSN_dorsal_ventral": {
+    "_description": "MSN classification by dorsal vs ventral striatum location",
+    "_biology": "Dorsal striatum (caudate/putamen) controls motor and cognitive functions. Ventral striatum (nucleus accumbens) mediates reward and limbic functions. STR D1D2 Hybrid MSNs are distributed across both regions.",
     
-    "STRd D1 Matrix MSN": "STRd D1 Matrix MSN",
-    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
-    "STRv D1 MSN": "STRv D1 MSN",
+    "STRd D1 Matrix MSN": "Dorsal",
+    "STRd D1 Striosome MSN": "Dorsal",
+    "STRd D2 Matrix MSN": "Dorsal",
+    "STRd D2 Striosome MSN": "Dorsal",
+    "STRd D2 StrioMat Hybrid MSN": "Dorsal",
+
+    "STRv D1 MSN": "Ventral",
+    "STRv D2 MSN": "Ventral",
+
+    "STRv D1 NUDAP MSN": "NUDAP",
+    "STR D1D2 Hybrid MSN": "D1D2"
+  },
+
+  "category_MSN_receptor_type": {
+    "_description": "MSN classification by dopamine receptor expression (D1 vs D2 vs hybrid)",
+    "_biology": "D1-MSNs form the direct pathway (striatonigral, movement facilitation). D2-MSNs form the indirect pathway (striatopallidal, movement inhibition). D1D2 hybrids co-express both receptors and project exclusively to GPe, modulating both pathways.",
+    
+    "STRd D1 Matrix MSN": "D1",
+    "STRd D1 Striosome MSN": "D1",
+    "STRv D1 MSN": "D1",
+    "STRv D1 NUDAP MSN": "D1",
+
+    "STRd D2 Matrix MSN": "D2",
+    "STRd D2 Striosome MSN": "D2",
+    "STRd D2 StrioMat Hybrid MSN": "D2",
+    "STRv D2 MSN": "D2",
+    
+    "STR D1D2 Hybrid MSN": "D1D2"
+  },
+
+  "category_MSN_compartment": {
+    "_description": "MSN classification by striosome/matrix compartment (dorsal only)",
+    "_biology": "Striosomes (patches) are OPRM1+ islands receiving limbic cortical input, project to SNc dopamine neurons. Matrix surrounds striosomes, receives sensorimotor cortical input, projects to SNr/GPe. Ventral striatum lacks clear compartmental organization. StrioMat Hybrid cells have intermediate properties.",
+    
+    "STRd D1 Matrix MSN": "Matrix",
+    "STRd D1 Striosome MSN": "Striosome",
+    "STRd D2 Matrix MSN": "Matrix",
+    "STRd D2 Striosome MSN": "Striosome",
+
+    "STRd D2 StrioMat Hybrid MSN": "StrioMat",
+
+    "STRv D1 MSN": "STRv D1",
+    "STRv D2 MSN": "STRv D2",
+
+    "STRv D1 NUDAP MSN": "NUDAP",
+    "STR D1D2 Hybrid MSN": "D1D2"
+  },
+
+  "category_MSN_pathway": {
+    "_description": "MSN classification by basal ganglia pathway (direct vs indirect vs hybrid)",
+    "_biology": "Direct pathway (D1-MSNs) facilitates movement via striatonigral projections. Indirect pathway (D2-MSNs) inhibits movement via striatopallidal projections. D1D2 hybrids exclusively target GPe and modulate both pathways. NUDAPs are enriched in addiction-related genes.",
+    
+    "STRd D1 Matrix MSN": "Direct",
+    "STRd D1 Striosome MSN": "Direct",
+    "STRd D2 Matrix MSN": "Indirect",
+    "STRd D2 Striosome MSN": "Indirect",
+    "STRd D2 StrioMat Hybrid MSN": "Indirect",
+    "STRv D1 MSN": "Direct",
+    "STRv D2 MSN": "Indirect",
+    "STRv D1 NUDAP MSN": "Direct (NUDAP)",
+    "STR D1D2 Hybrid MSN": "D1D2"
+  },
+
+
+
+
+
+
+
+
+
+
+  "category_my_STR": {
+    "_description": "D1/D2 Vs d/v Vs Matrix/Striosome(missing in ventral) --> 2x2x2 = 6",
+    "_biology": "...",
+    
+    "_dorsal --> cuadate + putamene": "...",
+    "STRd D1 Matrix MSN": "STRd Matrix MSN",
+    "STRd D1 Striosome MSN": "STRd Striosome MSN",
+
+    "STRd D2 Matrix MSN": "STRd Matrix MSN",
+    "STRd D2 Striosome MSN": "STRd Striosome MSN",
+
+    "_ventral --> NAc + OT": "...",
+    "STRv D1 MSN": "STRv MSN",
+    "STRv D2 MSN": "STRv MSN",
+
+    "_special": "...",
     "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
-    "STRd D2 Matrix MSN": "STRd D2 Matrix MSN",
-    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
-    "STRv D2 MSN": "STRv D2 MSN",
     "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
     "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN"
-  },
 
-  
-  "category_striosome_matrix": {
-    "_description": "STR neurons classified by compartment (Striosome/Matrix/Hybrid) - rest unmapped",
-    "_biology": "Striosomes (patches) occupy ~10-15% of striatum, enriched in D1 MSNs and limbic inputs. Matrix occupies ~85-90%, enriched in D2 MSNs and sensorimotor inputs. Critical for XDP disease where striosomes degenerate first.",
-    
-    "STRd D1 Matrix MSN": "Matrix SPN",
-    "STRd D2 Matrix MSN": "Matrix SPN",
-    "STRv D1 MSN": "Matrix SPN",
-    "STRv D2 MSN": "Matrix SPN",
-    
-    "STRd D1 Striosome MSN": "Striosome SPN",
-    "STRd D2 Striosome MSN": "Striosome SPN",
-    
-    "STRv D1 NUDAP MSN": "Hybrid SPN (NUDAP)",
-    "STR D1D2 Hybrid MSN": "Hybrid SPN (D1D2)",
-    "STRd D2 StrioMat Hybrid MSN": "Hybrid SPN (StrioMat)"
-  },
-  
-  "category_dorsal_ventral": {
-    "_description": "STR neurons classified by anatomical location (Dorsal/Ventral) - rest unmapped",
-    "_biology": "Dorsal striatum (caudate/putamen) handles motor control and habit formation. Ventral striatum (nucleus accumbens) handles reward, motivation, and limbic functions.",
-    
-    "STRd D1 Matrix MSN": "Dorsal Striatum SPN",
-    "STRd D2 Matrix MSN": "Dorsal Striatum SPN",
-    "STRd D1 Striosome MSN": "Dorsal Striatum SPN",
-    "STRd D2 Striosome MSN": "Dorsal Striatum SPN",
-    "STRd D2 StrioMat Hybrid MSN": "Dorsal Striatum SPN",
-    
-    "STRv D1 MSN": "Ventral Striatum SPN",
-    "STRv D2 MSN": "Ventral Striatum SPN",
-    "STRv D1 NUDAP MSN": "Ventral Striatum SPN",
-    
-    "STR D1D2 Hybrid MSN": "Hybrid SPN (D1D2)"
-  },
-  
-  "category_d1_d2": {
-    "_description": "STR neurons classified by dopamine receptor type (D1/D2/Hybrid) - rest unmapped",
-    "_biology": "D1 MSNs form direct pathway (disinhibition → movement facilitation). D2 MSNs form indirect pathway (inhibition → movement suppression). Hybrid cells co-express both receptors and may have unique signaling.",
-    
-    "STRd D1 Matrix MSN": "D1 SPN",
-    "STRd D1 Striosome MSN": "D1 SPN",
-    "STRv D1 MSN": "D1 SPN",
-    "STRv D1 NUDAP MSN": "D1 SPN",
-    
-    "STRd D2 Matrix MSN": "D2 SPN",
-    "STRd D2 Striosome MSN": "D2 SPN",
-    "STRv D2 MSN": "D2 SPN",
-    "STRd D2 StrioMat Hybrid MSN": "D2 SPN",
-    
-    "STR D1D2 Hybrid MSN": "Hybrid SPN (D1D2)"
-  },
-  
-  "category_intrinsic_extrinsic": {
-    "_description": "STR neurons classified by striatal territory (Intrinsic/Extrinsic) - rest unmapped",
-    "_biology": "Intrinsic striatum is the canonical caudate/putamen/accumbens. Extrinsic includes extended striatal regions (olfactory tubercle, extended amygdala) with striatal-like organization but different functions.",
-    
-    "STRd D1 Matrix MSN": "Intrinsic Striatum SPN",
-    "STRd D2 Matrix MSN": "Intrinsic Striatum SPN",
-    "STRv D1 MSN": "Intrinsic Striatum SPN",
-    "STRv D2 MSN": "Intrinsic Striatum SPN",
-    "STRd D1 Striosome MSN": "Intrinsic Striatum SPN",
-    "STRd D2 Striosome MSN": "Intrinsic Striatum SPN",
-    "STRv D1 NUDAP MSN": "Intrinsic Striatum SPN",
-    "STR D1D2 Hybrid MSN": "Intrinsic Striatum SPN",
-    "STRd D2 StrioMat Hybrid MSN": "Intrinsic Striatum SPN",
-    
-    "OT D1 ICj": "Extrinsic Striatum (OT)",
-    "AMY-SLEA-BNST D1 GABA": "Extrinsic Striatum (Extended Amygdala)"
   }
-}
+}    

@@ -103,6 +103,8 @@ def plot_qc_metrics(adata):
 
 def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False):
 
+    print("Expect .X is raw counts!")
+
     if save_raw_counts:
         adata.layers["counts"] = adata.X.copy()
 
@@ -252,10 +254,10 @@ def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
     plt.show()
 
 
-def plot_cell_type_distribution(adata, annotation_levels=["Class_name"]):
+def plot_cell_type_distribution(adata, annotation_levels=["Class_name"], dropna=False):
 
     for ann in annotation_levels:
-        vc = adata.obs[ann].value_counts(dropna=False).sort_values(ascending=False)
+        vc = adata.obs[ann].value_counts(dropna=dropna).sort_values(ascending=False)
         vp = vc / vc.sum() * 100  # percentages
 
         fig, axes = plt.subplots(2,1, figsize=(12,8))
