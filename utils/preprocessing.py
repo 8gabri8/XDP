@@ -8,6 +8,7 @@ import pandas as pd
 from sklearn.mixture import GaussianMixture
 from scipy.stats import norm
 from diptest import diptest
+from tqdm.notebook import tqdm
 
 
 def plot_qc_metrics(adata):
@@ -101,7 +102,7 @@ def plot_qc_metrics(adata):
     plt.show()
 
 
-def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False):
+def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False, verbose=False):
 
     print("Expect .X is raw counts!")
 
@@ -118,8 +119,9 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
     print("Findingn HVGs...")
     sc.pp.highly_variable_genes(adata, n_top_genes=n_hvg, flavor='seurat_v3', batch_key=hvg_batch_key, layer=hvg_layer) #needs raw cpount if falvour=seurat3
         # do not remove not hvg right now! 
-    sc.pl.highly_variable_genes(adata, show=True)
-        # BAD: nif there is not clear seapration
+    if verbose:
+        sc.pl.highly_variable_genes(adata, show=True)
+            # BAD: nif there is not clear seapration
 
     # scale
         # ATTENTION: now X stores nroalised counts --> not used for all stat test alter
@@ -129,10 +131,11 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
     # PCA
     print("Calculating PCA...")
     sc.tl.pca(adata, svd_solver='arpack', n_comps=80) # ATTENTION: # Uses HVGs only (if calculted, even if the adat has all geens)
-    sc.pl.pca_variance_ratio(adata, log=True, n_pcs=80, show=True)
+    if verbose:
+        sc.pl.pca_variance_ratio(adata, log=True, n_pcs=80, show=True)
 
     # neighbours (for umap and leiden)
-    print("Calculating neightbors...")
+    print("Calculating neighbors...")
     sc.pp.neighbors(adata, use_rep='X_pca', n_pcs=n_pcs_elbow) # from X_pca
 
     # umap
@@ -148,7 +151,7 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
 
     print("Preprocessing done.")
 
-def show_top_pc_genes(adata, n_pcs=3, top_n=10):
+def show_top_pc_genes(adata, n_pcs=3, top_n=10, n_top_abs_genes_PC1=1):
 
     pcs_to_show = [f'PC{i}' for i in range(1, n_pcs + 1)]
 
@@ -192,6 +195,12 @@ def show_top_pc_genes(adata, n_pcs=3, top_n=10):
         adata.obs[f'PC{i+1}'] = adata.obsm['X_pca'][:, i]
     # Plot UMAP colored by those PCs (keeps the original call but with the selected PCs)
     sc.pl.umap(adata, color=[f'PC{i+1}' for i in range(n_pcs)], cmap='RdBu_r')
+
+    # Get top genes for PC1
+    pc1_top_positive = loadings['PC1'].nlargest(n_top_abs_genes_PC1).index.tolist()
+    pc1_top_negative = loadings['PC1'].nsmallest(n_top_abs_genes_PC1).index.tolist()
+
+    return pc1_top_positive + pc1_top_negative
 
 
 def plot_cell_type(adata, adata_spatial, ANNOTATION_LEVEL):
@@ -426,16 +435,280 @@ def plot_cluster_and_get_valley(ax, scores, cluster, gmm, is_bimodal, p_value, s
     return threshold
 
 
+def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", n_genes_gsea=None):
+
+    # Run rank_genes_groups for ALL clusters (each vs rest)
+    sc.tl.rank_genes_groups(
+        adata, 
+        groupby=leiden_col,  # Compare each leiden cluster vs rest
+        method='wilcoxon', 
+        corr_method="benjamini-hochberg",
+        
+        groups=[leiden_cluster],  
+        reference='rest',  # Default is 'rest'
+        
+        use_raw=False, 
+        layer="log1p_norm",
+        pts=True,
+        
+        key_added=F"leiden_{leiden_cluster}_DEGs",
+        rankby_abs=False
+    )
+
+
+    # Get results for this cluster
+    deg_df = sc.get.rank_genes_groups_df(
+        adata, 
+        group=[leiden_cluster], 
+        key=F"leiden_{leiden_cluster}_DEGs"
+    )
+
+    # Filter DEGs
+    deg_filtered = deg_df[
+        (deg_df.pvals_adj < 0.05) &
+        #(np.abs(deg_df.logfoldchanges) > 1) &
+        (deg_df.logfoldchanges > 1) &
+        (deg_df['pct_nz_group'] > 0.25) &  # only test genes that are detected in a minimum fraction  IN cluster
+        (deg_df['pct_nz_reference'] < 0.20)  # only test genes NOT expressed outside
+    ].copy()
+        
+    # Mapo gene
+    gene_symbol_map = adata.var["gene_symbol"].to_dict()
+    deg_filtered["gene_symbol"] = deg_filtered["names"].map(gene_symbol_map)
+
+    print(f"\nTotal DEGs across all clusters: {len(deg_filtered)}")
+    display(deg_filtered.head(20))
+    deg_genes = deg_filtered.gene_symbol.to_list()
+    print(deg_genes)
 
 
 
+    import gseapy as gp
+
+    # Get gene list (use gene symbols)
+    if n_genes_gsea is not None:
+        deg_genes = deg_genes[:n_genes_gsea]
+    print(f"Running enrichment on {len(deg_genes)} genes...")
+
+    # Run Enrichr
+    enr = gp.enrichr(
+        gene_list=deg_genes,
+        gene_sets=['GO_Biological_Process_2023', 'GO_Cellular_Component_2023', 'KEGG_2021_Human', 'MSigDB_Hallmark_2020'],
+        organism='human',
+        outdir=None,  # Don't save files
+    )
+
+    # Display top results
+    print("\n=== Top Enriched Pathways ===")
+    enriched_paths_df = enr.results[enr.results["Adjusted P-value"] <= 0.05]
+    display(enriched_paths_df)
+
+    return deg_filtered, deg_genes, enriched_paths_df
 
 
 
+def calculate_and_plot_markers(adata, makers_dict, ncol=3):
+    
+    print("Assure that adata.var.index has same gene name of makers...")
+    for cell_type, genes in tqdm(makers_dict.items()):
+        # Only use genes that exist in your data
+        #genes_available = [g for g in genes if g in query.var.gene_symbol.to_list()]
+        
+        if len(genes) > 0:
+            #print(f"  {cell_type}: {len(genes)} markers")
+            sc.tl.score_genes(adata, genes, score_name=f'{cell_type}_score', use_raw=False, layer="log1p_norm") # normalised scores (not scaled)
+        else:
+            print(f"  ⚠ {cell_type}: No markers found!")
 
+    # plot umaps
+    score_cols = [f'{ct}_score' for ct in makers_dict.keys() if f'{ct}_score' in adata.obs]
+    sc.pl.umap(adata, color=score_cols, cmap='Reds', ncols=ncol)
+    sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap="Reds")
 
+def wilcoxon_between_two_clusters(
+    adata, 
+    leiden_col="leiden_1", 
+    cluster_A="0", 
+    cluster_B="1",
+    n_genes_gsea=None,
+    pval_cutoff=0.05,
+    logfc_cutoff=1.0,
+    pct_cutoff=0.25
+):
+    """
+    Compare DEGs between two specific leiden clusters using Wilcoxon test.
+    
+    Parameters:
+    -----------
+    adata : AnnData
+        Annotated data object
+    leiden_col : str
+        Column name in adata.obs containing cluster assignments
+    cluster_A : str
+        First cluster ID (will be tested as "group")
+    cluster_B : str
+        Second cluster ID (will be tested as "reference")
+    n_genes_gsea : int, optional
+        Number of top genes to use for enrichment (None = use all)
+    pval_cutoff : float
+        Adjusted p-value threshold (default: 0.05)
+    logfc_cutoff : float
+        Log fold change threshold (default: 1.0)
+    pct_cutoff : float
+        Minimum fraction of cells expressing gene (default: 0.25)
+    
+    Returns:
+    --------
+    dict with DEG results and enrichment
+    """
+    
+    print(f"\n{'='*60}")
+    print(f"Comparing Cluster {cluster_A} vs Cluster {cluster_B}")
+    print(f"{'='*60}\n")
+    
+    # Run rank_genes_groups comparing cluster_A vs cluster_B
+    sc.tl.rank_genes_groups(
+        adata, 
+        groupby=leiden_col,
+        method='wilcoxon', 
+        corr_method="benjamini-hochberg",
+        groups=[cluster_A],      # Test this cluster
+        reference=cluster_B,     # Against this cluster
+        use_raw=False, 
+        layer="log1p_norm",
+        pts=True,
+        key_added=f"DEG_{cluster_A}_vs_{cluster_B}",
+        rankby_abs=False
+    )
 
+    # Get results
+    deg_df = sc.get.rank_genes_groups_df(
+        adata, 
+        group=cluster_A,
+        key=f"DEG_{cluster_A}_vs_{cluster_B}"
+    )
 
+    # Map gene symbols
+    if "gene_symbol" in adata.var.columns:
+        gene_symbol_map = adata.var["gene_symbol"].to_dict()
+        deg_df["gene_symbol"] = deg_df["names"].map(gene_symbol_map)
+    else:
+        deg_df["gene_symbol"] = deg_df["names"]
+
+    print(f"Total genes tested: {len(deg_df)}")
+    print(f"Columns available: {deg_df.columns.tolist()}")
+
+    # Filter for UPREGULATED genes in cluster_A vs cluster_B
+    # Note: When comparing two clusters, we only have pct_nz_group, not pct_nz_reference
+    deg_up_A = deg_df[
+        (deg_df.pvals_adj < pval_cutoff) &
+        (deg_df.logfoldchanges > logfc_cutoff) &
+        (deg_df['pct_nz_group'] > pct_cutoff)  # Only filter on group percentage
+    ].copy().sort_values('logfoldchanges', ascending=False)
+    
+    # Filter for DOWNREGULATED genes (higher in cluster_B)
+    deg_up_B = deg_df[
+        (deg_df.pvals_adj < pval_cutoff) &
+        (deg_df.logfoldchanges < -logfc_cutoff) &
+        (deg_df['pct_nz_group'] < (1 - pct_cutoff))  # Low expression in cluster_A
+    ].copy().sort_values('logfoldchanges', ascending=True)
+
+    print(f"\nGenes UP in cluster {cluster_A}: {len(deg_up_A)}")
+    print(f"Genes UP in cluster {cluster_B}: {len(deg_up_B)}")
+    
+    if len(deg_up_A) > 0:
+        print(f"\nTop genes UP in cluster {cluster_A}:")
+        print("="*60)
+        display(deg_up_A.head(20))
+    
+    if len(deg_up_B) > 0:
+        print(f"\nTop genes UP in cluster {cluster_B}:")
+        print("="*60)
+        display(deg_up_B.head(20))
+
+    # Prepare gene lists
+    deg_genes_up = deg_up_A.gene_symbol.dropna().to_list()
+    deg_genes_down = deg_up_B.gene_symbol.dropna().to_list()
+    
+    print(f"\nCluster {cluster_A} signature genes ({len(deg_genes_up)}):")
+    print(deg_genes_up[:50])
+    print(f"\nCluster {cluster_B} signature genes ({len(deg_genes_down)}):")
+    print(deg_genes_down[:50])
+
+    # Run enrichment analysis
+    import gseapy as gp
+    
+    enrichment_results = {}
+    
+    # Enrichment for cluster_A genes
+    if len(deg_genes_up) > 0:
+        genes_for_enrichment = deg_genes_up[:n_genes_gsea] if n_genes_gsea else deg_genes_up
+        print(f"\n{'='*60}")
+        print(f"Running enrichment for Cluster {cluster_A} ({len(genes_for_enrichment)} genes)...")
+        print(f"{'='*60}")
+        
+        try:
+            enr_up = gp.enrichr(
+                gene_list=genes_for_enrichment,
+                gene_sets=[
+                    'GO_Biological_Process_2023', 
+                    'GO_Cellular_Component_2023', 
+                    'KEGG_2021_Human', 
+                    'MSigDB_Hallmark_2020'
+                ],
+                organism='human',
+                outdir=None,
+            )
+            enriched_up = enr_up.results[enr_up.results["Adjusted P-value"] <= 0.05]
+            if len(enriched_up) > 0:
+                print(f"\nTop pathways enriched in Cluster {cluster_A}:")
+                display(enriched_up.head(10))
+            else:
+                print(f"No significant pathways found for Cluster {cluster_A}")
+            enrichment_results[f'cluster_{cluster_A}'] = enriched_up
+        except Exception as e:
+            print(f"Enrichment failed for cluster {cluster_A}: {e}")
+            enrichment_results[f'cluster_{cluster_A}'] = None
+    
+    # Enrichment for cluster_B genes
+    if len(deg_genes_down) > 0:
+        genes_for_enrichment = deg_genes_down[:n_genes_gsea] if n_genes_gsea else deg_genes_down
+        print(f"\n{'='*60}")
+        print(f"Running enrichment for Cluster {cluster_B} ({len(genes_for_enrichment)} genes)...")
+        print(f"{'='*60}")
+        
+        try:
+            enr_down = gp.enrichr(
+                gene_list=genes_for_enrichment,
+                gene_sets=[
+                    'GO_Biological_Process_2023', 
+                    'GO_Cellular_Component_2023', 
+                    'KEGG_2021_Human', 
+                    'MSigDB_Hallmark_2020'
+                ],
+                organism='human',
+                outdir=None,
+            )
+            enriched_down = enr_down.results[enr_down.results["Adjusted P-value"] <= 0.05]
+            if len(enriched_down) > 0:
+                print(f"\nTop pathways enriched in Cluster {cluster_B}:")
+                display(enriched_down.head(10))
+            else:
+                print(f"No significant pathways found for Cluster {cluster_B}")
+            enrichment_results[f'cluster_{cluster_B}'] = enriched_down
+        except Exception as e:
+            print(f"Enrichment failed for cluster {cluster_B}: {e}")
+            enrichment_results[f'cluster_{cluster_B}'] = None
+
+    # Return results
+    return {
+        'deg_up_in_A': deg_up_A,
+        'deg_up_in_B': deg_up_B,
+        'genes_up_in_A': deg_genes_up,
+        'genes_up_in_B': deg_genes_down,
+        'enrichment': enrichment_results,
+        'all_degs': deg_df
+    }
 
 
 

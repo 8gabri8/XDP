@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "abc-atlas-access[notebooks]",
     "cell-type-mapper",
+    "cupy-cuda12x>=13.6.0",
     "diptest>=0.10.0",
     "dotenv>=0.9.9",
     "gseapy>=1.1.11",
@@ -14,6 +15,8 @@ dependencies = [
     "ipynbname>=2025.8.0.0",
     "ipywidgets>=8.1.8",
     "leidenalg>=0.11.0",
+    "probreg>=0.3.8",
+    "pycpd>=2.0.0",
     "rpy2>=3.6.4",
     "scanpy>=1.11.5",
     "scikit-misc>=0.5.2",

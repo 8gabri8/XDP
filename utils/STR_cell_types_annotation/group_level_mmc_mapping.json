@@ -53,6 +53,8 @@
     "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
     "STRv D2 MSN": "STRv D2 MSN",
 
+    "Tafa1 STR D1 Matrix MSN": "Tafa1 STR D1 Matrix MSN",
+
     "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
     "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
 
@@ -90,9 +92,93 @@
 
   },
 
+  "group_level_celltype_colors": {
+
+      "Tafa1 STR D1 Matrix MSN": "#e41a1c",
+
+      "Astrocyte": "#e41a1c",
+      "ImAstro": "#377eb8",
+      "Ependymal": "#4daf4a",
+
+      "B cells": "#984ea3",
+      "T cells": "#ff7f00",
+      "BAM": "#ffff33",
+      "Microglia": "#a65628",
+      "Monocyte": "#f781bf",
+
+      "COP": "#999999",
+      "OPC": "#66c2a5",
+      "ImOligo": "#fc8d62",
+      "Oligo OPALIN": "#8da0cb",
+      "Oligo PLEKHG1": "#e78ac3",
+
+      "Endo": "#a6d854",
+      "Pericyte": "#ffd92f",
+      "SMC": "#e5c494",
+      "VLMC": "#b3b3b3",
+
+      "BF SKOR1 Glut": "#1b9e77",
+      "STH PVALB-PITX2 Glut": "#d95f02",
+      "VTR-HTH Glut": "#7570b3",
+
+      "SN SOX6 Dopa": "#e7298a",
+      "SN-VTR CALB1 Dopa": "#66a61e",
+      "SN-VTR GAD2 Dopa": "#e6ab02",
+
+      "LAMP5-CXCL14 GABA": "#a6761d",
+      "VIP GABA": "#666666",
+      "LAMP5-LHX6 GABA": "#8c564b",
+
+      "STRd D1 Matrix MSN": "#17becf",
+      "STRd D1 Striosome MSN": "#bcbd22",
+      "STRv D1 MSN": "#9467bd",
+
+      "STRd D2 Matrix MSN": "#d62728",
+      "STRd D2 StrioMat Hybrid MSN": "#2ca02c",
+      "STRd D2 Striosome MSN": "#1f77b4",
+      "STRv D2 MSN": "#7f7f7f",
+
+      "STR D1D2 Hybrid MSN": "#aec7e8",
+      "STRv D1 NUDAP MSN": "#ffbb78",
+
+      "STR FS PTHLH-PVALB GABA": "#98df8a",
+      "STR TAC3-PLPP4 GABA": "#c5b0d5",
+      "STR-BF TAC3-PLPP4-LHX8 GABA": "#ff9896",
+      "STR LYPD6-RSPO2 GABA": "#c49c94",
+      "STR SST-RSPO2 GABA": "#f7b6d2",
+      "STR SST-ADARB2 GABA": "#c7c7c7",
+      "STR SST-CHODL GABA": "#dbdb8d",
+
+      "GPin-BF Cholinergic GABA": "#9edae5",
+      "STR Cholinergic GABA": "#393b79",
+      "STRd Cholinergic GABA": "#5254a3",
+
+      "GPe MEIS2-SOX6 GABA": "#6b6ecf",
+      "OT D1 ICj": "#9c9ede",
+      "OB Dopa-GABA": "#637939",
+      "OB FRMD7 GABA": "#8ca252",
+
+      "GPe SOX6-CTXND1 GABA": "#b5cf6b",
+      "GPe-NDB-SI LHX6-LHX8-GBX1 GABA": "#cedb9c",
+      "GPi Core": "#8c6d31",
+      "GPi Shell": "#bd9e39",
+
+      "AMY-SLEA-BNST D1 GABA": "#e7ba52",
+      "AMY-SLEA-BNST GABA": "#e7cb94",
+      "ZI-HTH GABA": "#843c39",
+
+      "SN GATA3-PAX8 GABA": "#ad494a",
+      "SN GATA3-PVALB GABA": "#d6616b",
+      "SN-VTR-HTH GATA3-TCF7L2 GABA": "#e7969c",
+      "SN EBF2 GABA": "#7b4173",
+      "SN SEMA5A GABA": "#fdae6b"
+  },
+
  "category_only_neurons":{
     "_description": "All neuron cell types (non-neuronal removed)",
     "_note": "All entries mapped to 'neuron'",
+
+    "Tafa1 STR D1 Matrix MSN": "neuron",
 
     "BF SKOR1 Glut": "neuron",
     "STH PVALB-PITX2 Glut": "neuron",
@@ -163,7 +249,10 @@
     "STRv D2 MSN": "MSN",
     "STRd D2 StrioMat Hybrid MSN": "MSN",
 
-    "STR D1D2 Hybrid MSN": "MSN"
+    "STR D1D2 Hybrid MSN": "MSN",
+
+    "Tafa1 STR D1 Matrix MSN": "MSN"
+
   },
 
   "category_neurons_minus_MSN": {
@@ -328,7 +417,8 @@
     "STRv D2 MSN": "Ventral",
 
     "STRv D1 NUDAP MSN": "NUDAP",
-    "STR D1D2 Hybrid MSN": "D1D2"
+    "STR D1D2 Hybrid MSN": "D1D2",
+    "Tafa1 STR D1 Matrix MSN": "Tafa1"
   },
 
   "category_MSN_receptor_type": {
@@ -339,6 +429,7 @@
     "STRd D1 Striosome MSN": "D1",
     "STRv D1 MSN": "D1",
     "STRv D1 NUDAP MSN": "D1",
+    "Tafa1 STR D1 Matrix MSN": "D1",
 
     "STRd D2 Matrix MSN": "D2",
     "STRd D2 Striosome MSN": "D2",
@@ -356,6 +447,7 @@
     "STRd D1 Striosome MSN": "Striosome",
     "STRd D2 Matrix MSN": "Matrix",
     "STRd D2 Striosome MSN": "Striosome",
+    "Tafa1 STR D1 Matrix MSN": "Matrix",
 
     "STRd D2 StrioMat Hybrid MSN": "StrioMat",
 
@@ -372,6 +464,7 @@
     
     "STRd D1 Matrix MSN": "Direct",
     "STRd D1 Striosome MSN": "Direct",
+    "Tafa1 STR D1 Matrix MSN": "Direct",
     "STRd D2 Matrix MSN": "Indirect",
     "STRd D2 Striosome MSN": "Indirect",
     "STRd D2 StrioMat Hybrid MSN": "Indirect",
@@ -408,7 +501,36 @@
     "_special": "...",
     "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
     "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
-    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN"
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
+    "Tafa1 STR D1 Matrix MSN": "Tafa1 STR D1 Matrix MSN"
 
+
+  },
+
+  "cell_type_locations": {
+
+    
+    "GPe MEIS2-SOX6 GABA": "Globus_Pallidus_External",
+    "GPe SOX6-CTXND1 GABA": "Globus_Pallidus_External",
+    
+    "GPi Core": "Globus_Pallidus_Internal",
+    "GPi Shell": "Globus_Pallidus_Internal",
+    
+    "OT D1 ICj": "Olfactory_Tubercle",
+    
+    "OB Dopa-GABA": "Olfactory_Bulb",
+    "OB FRMD7 GABA": "Olfactory_Bulb",
+    
+    "SN SOX6 Dopa": "Substantia_Nigra",
+    "SN GATA3-PAX8 GABA": "Substantia_Nigra",
+    "SN GATA3-PVALB GABA": "Substantia_Nigra",
+    "SN EBF2 GABA": "Substantia_Nigra",
+    "SN SEMA5A GABA": "Substantia_Nigra",
+    
+    "STH PVALB-PITX2 Glut": "Subthalamic_Nucleus",
+    
+    "ZI-HTH GABA": "Zona_Incerta_Hypothalamus",
+    
+    "BF SKOR1 Glut": "Basal_Forebrain"
   }
 }    
