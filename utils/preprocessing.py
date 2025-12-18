@@ -712,7 +712,60 @@ def wilcoxon_between_two_clusters(
 
 
 
+def plot_spatial_umap_per_type(adata, ANNOTATION_LEVEL):
 
+    subclasses = adata.obs[ANNOTATION_LEVEL].value_counts().index.to_list()
+    n_subclasses = len(subclasses)
+
+    # Calculate rows (ceiling division)
+    n_rows = int(np.ceil(n_subclasses / 2))
+    n_cols = 4
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(20, 4*n_rows))
+    axes = axes.flatten()  # Flatten to 1D for easy indexing
+
+    for i, s in enumerate(subclasses):
+        # Create highlight column
+        adata.obs["temp_highlight"] = adata.obs[ANNOTATION_LEVEL].apply(
+            lambda x: s if x == s else 'Other'
+        )
+        
+        # Spatial plot (left side: columns 0, 2, 4, ...)
+        sc.pl.embedding(
+            adata, 
+            basis="spatial", 
+            color="temp_highlight", 
+            palette={'Other': 'lightgray', s: 'red'}, 
+            na_color='#CCCCCC',  # Different shade to avoid conflict
+            ax=axes[i*2], 
+            show=False, 
+            legend_loc=None, 
+            size=10,
+            title=f"{s} (spatial)"
+        )
+        
+        # UMAP plot (right side: columns 1, 3, 5, ...)
+        sc.pl.embedding(
+            adata, 
+            basis="X_umap", 
+            color="temp_highlight", 
+            palette={'Other': 'lightgray', s: 'red'}, 
+            na_color='#CCCCCC',  # Different shade to avoid conflict
+            ax=axes[i*2 + 1], 
+            show=False, 
+            legend_loc=None,
+            title=f"{s} (UMAP)"
+        )
+
+    # Hide unused subplots
+    for j in range(i*2 + 2, len(axes)):
+        axes[j].axis('off')
+
+    # Clean up temp column from BOTH objects
+    adata.obs.drop('temp_highlight', axis=1, inplace=True)
+
+    plt.tight_layout()
+    plt.show()
 
 
 

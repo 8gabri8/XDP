@@ -506,6 +506,47 @@
 
 
   },
+  "mapping_for_zoning": {
+    "_description": "",
+    "_biology": "...",
+    
+    "STRd D1 Matrix MSN": "D1 Matrix MSN",
+    "STRv D1 MSN": "D1 Matrix MSN",
+    "Tafa1 STR D1 Matrix MSN": "D1 Matrix MSN",
+
+
+    "STRd D2 Matrix MSN": "D2 Matrix MSN",
+    "STRv D2 MSN": "D2 Matrix MSN",
+
+    "STRd D1 Striosome MSN": "STRd Striosome MSN",
+    "STRd D2 Striosome MSN": "STRd Striosome MSN",
+
+    "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+    "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN"
+
+  },
+
+  "category_MSN_group_names": {
+    "_description": "Medium Spiny Neurons only",
+    "_note": "All entries map to 'MSN'",
+
+    "STRd D1 Matrix MSN": "STRd D1 Matrix MSN",
+    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
+    "STRv D1 MSN": "STRv D1 MSN",
+    "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+
+    "STRd D2 Matrix MSN": "STRd D2 Matrix MSN",
+    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
+    "STRv D2 MSN": "STRv D2 MSN",
+    "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
+
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
+
+    "Tafa1 STR D1 Matrix MSN": "Tafa1 STR D1 Matrix MSN"
+
+  },
+
 
   "cell_type_locations": {
 
