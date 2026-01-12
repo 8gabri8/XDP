@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "abc-atlas-access[notebooks]",
+    "adjusttext>=1.3.0",
     "anndata2ri>=2.0",
     "cell-type-mapper",
     "cupy-cuda12x>=13.6.0",

@@ -9,6 +9,12 @@ from sklearn.mixture import GaussianMixture
 from scipy.stats import norm
 from diptest import diptest
 from tqdm.notebook import tqdm
+from scipy.sparse import csr_matrix
+
+import rpy2.robjects as ro
+r = ro.r
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
 
 
 def plot_qc_metrics(adata):
@@ -150,6 +156,28 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
     sc.tl.leiden(adata, resolution=2.0, key_added="leiden_4", flavor="igraph", n_iterations=2)
 
     print("Preprocessing done.")
+
+def reprocess_subset(adata, old_umap_name=""):
+
+    # bring back counts to X
+    adata.X = adata.layers["counts"]
+    adata.obsm[f"{old_umap_name}_old_umap"] = adata.obsm["X_umap"].copy()
+
+    # Filter genes
+    print(f"   Genes before filtering: {adata.n_vars}")
+    sc.pp.filter_genes(adata, min_cells=3)
+    print(f"   Genes after filtering: {adata.n_vars}")
+
+    # reprocess
+    preprocess(adata, n_pcs_elbow=30, n_hvg=3000, verbose=False)
+
+    # Calculate QC
+    adata.X = adata.layers["counts"].copy()     # bring back counts to X
+    adata.var["mt"] = adata.var.gene_symbol.str.startswith("MT-") # mitochondrial genes, ATTNETION: the names are in "gene_symbol"
+    sc.pp.calculate_qc_metrics(adata, qc_vars=['mt'], inplace=True)
+
+    adata.X = csr_matrix(adata.shape)
+
 
 def show_top_pc_genes(adata, n_pcs=3, top_n=10, n_top_abs_genes_PC1=1):
 
@@ -769,4 +797,83 @@ def plot_spatial_umap_per_type(adata, ANNOTATION_LEVEL):
 
 
 
+def scrub(adata):
+    import scrublet as scr
 
+    counts = adata.layers['counts'].copy()
+
+    scrub = scr.Scrublet(
+        counts,
+        #expected_doublet_rate=predicted_total_doublet_rate_by_oligo,  # Use prior estimate 
+        sim_doublet_ratio=2
+    )
+
+    doublet_scores, predicted_doublets = scrub.scrub_doublets(
+        min_counts=2,
+        min_cells=3,
+        min_gene_variability_pctl=85,
+        n_prin_comps=30
+    )
+
+    scrub.plot_histogram()
+
+    # store in adata
+    adata.obs['scrublet_score'] = doublet_scores
+    adata.obs['is_scrublet_doublet'] = predicted_doublets
+
+    # calculate
+    total_doublet_rate_by_scrublet = predicted_doublets.sum() / len(predicted_doublets)
+    print(total_doublet_rate_by_scrublet)
+
+    # Plot overlap
+    # sc.pl.umap(adata, color='is_oligo_doublet', show=False, 
+    #            title=f'Oligo doublets ({predicted_total_doublet_rate_by_oligo*100:.1f}%)')
+    sc.pl.umap(adata, color='is_scrublet_doublet', show=False,
+            title=f'Scrublet doublets ({total_doublet_rate_by_scrublet*100:.1f}%)')
+
+
+def plot_embedding_grid(adata, bases, colors, highlight_groups=None, size=10, figsize=None):
+    
+    import matplotlib.pyplot as plt
+    
+    n_rows = len(bases)
+    n_cols = len(colors)
+    
+    # Auto-calculate figure size if not provided
+    if figsize is None:
+        figsize = (6*n_cols, 5*n_rows)
+    
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=figsize)
+    
+    # Handle single row/col case
+    if n_rows == 1 and n_cols == 1:
+        axs = np.array([[axs]])
+    elif n_rows == 1:
+        axs = axs.reshape(1, -1)
+    elif n_cols == 1:
+        axs = axs.reshape(-1, 1)
+    
+    # Plot each combination
+    for i, basis in enumerate(bases):
+        for j, color in enumerate(colors):
+            
+            # Get groups to highlight (if any)
+            groups = highlight_groups.get(color, None) if highlight_groups else None
+            
+            # Plot
+            sc.pl.embedding(
+                adata,
+                basis=basis,
+                color=color,
+                groups=groups,
+                size=size,
+                ax=axs[i, j],
+                show=False,
+                legend_loc="lower right"
+            )
+            
+            # Title
+            axs[i, j].set_title(f"{basis} - {color}", fontsize=10, fontweight='bold')
+    
+    plt.tight_layout()
+    plt.show()

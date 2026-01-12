@@ -53,8 +53,10 @@
     "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
     "STRv D2 MSN": "STRv D2 MSN",
 
-    "Tafa1 STR D1 Matrix MSN": "Tafa1 STR D1 Matrix MSN",
-
+    "Tafa1 STRd D1 Matrix MSN": "Tafa1 STRd D1 Matrix MSN",
+    "Tafa1 STRd D2 Matrix MSN": "Tafa1 STRd D2 Matrix MSN",
+    "Tafa1 STRd D2 StrioMat Hybrid MSN": "Tafa1 STRd D2 StrioMat Hybrid MSN",
+    
     "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
     "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
 
@@ -506,29 +508,31 @@
 
 
   },
-  "mapping_for_zoning": {
-    "_description": "",
+
+  "mapping_MSN_for_zoning": {
+    "_description": "How to group MSN cells to get zoning from script (also the same of MSN paper). key=gorup_name, value=new merged name",
     "_biology": "...",
     
-    "STRd D1 Matrix MSN": "D1 Matrix MSN",
-    "STRv D1 MSN": "D1 Matrix MSN",
-    "Tafa1 STR D1 Matrix MSN": "D1 Matrix MSN",
+    "STRd D1 Matrix MSN": "STR D1 Matrix MSN",
+    "STRv D1 MSN": "STR D1 Matrix MSN",
+    "Tafa1 STR D1 Matrix MSN": "STR D1 Matrix MSN",
 
+    "STRd D2 Matrix MSN": "STR D2 Matrix MSN",
+    "STRv D2 MSN": "STR D2 Matrix MSN",
+    "Tafa1 STRd D2 Matrix MSN": "STR D2 Matrix MSN",
 
-    "STRd D2 Matrix MSN": "D2 Matrix MSN",
-    "STRv D2 MSN": "D2 Matrix MSN",
-
-    "STRd D1 Striosome MSN": "STRd Striosome MSN",
-    "STRd D2 Striosome MSN": "STRd Striosome MSN",
+    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
+    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
 
     "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
     "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
-    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN"
+    "Tafa1 STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN"
 
   },
 
   "category_MSN_group_names": {
-    "_description": "Medium Spiny Neurons only",
+    "_description": "MSN with names as they are",
     "_note": "All entries map to 'MSN'",
 
     "STRd D1 Matrix MSN": "STRd D1 Matrix MSN",
@@ -543,35 +547,10 @@
 
     "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
 
-    "Tafa1 STR D1 Matrix MSN": "Tafa1 STR D1 Matrix MSN"
+    "Tafa1 STRd D1 Matrix MSN": "Tafa1 STRd D1 Matrix MSN",
+    "Tafa1 STRd D2 Matrix MSN": "Tafa1 STRd D2 Matrix MSN",
+    "Tafa1 STRd D2 StrioMat Hybrid MSN": "Tafa1 STRd D2 StrioMat Hybrid MSN"
 
-  },
-
-
-  "cell_type_locations": {
-
-    
-    "GPe MEIS2-SOX6 GABA": "Globus_Pallidus_External",
-    "GPe SOX6-CTXND1 GABA": "Globus_Pallidus_External",
-    
-    "GPi Core": "Globus_Pallidus_Internal",
-    "GPi Shell": "Globus_Pallidus_Internal",
-    
-    "OT D1 ICj": "Olfactory_Tubercle",
-    
-    "OB Dopa-GABA": "Olfactory_Bulb",
-    "OB FRMD7 GABA": "Olfactory_Bulb",
-    
-    "SN SOX6 Dopa": "Substantia_Nigra",
-    "SN GATA3-PAX8 GABA": "Substantia_Nigra",
-    "SN GATA3-PVALB GABA": "Substantia_Nigra",
-    "SN EBF2 GABA": "Substantia_Nigra",
-    "SN SEMA5A GABA": "Substantia_Nigra",
-    
-    "STH PVALB-PITX2 Glut": "Subthalamic_Nucleus",
-    
-    "ZI-HTH GABA": "Zona_Incerta_Hypothalamus",
-    
-    "BF SKOR1 Glut": "Basal_Forebrain"
   }
+
 }    
