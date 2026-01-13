@@ -4,19 +4,24 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from scipy import sparse
+from anndata import AnnData
+from tqdm import tqdm
+
 import rpy2.robjects as ro
 r = ro.r
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
 
+
 def run_mast_deg(
     adata,
-    cell_type_col,
-    cell_type,
     condition_col,
     contrast,  # [test_group, reference_group]
     replicate_col, # sample (if only one sample this will be consatnt)
+    cell_type_col=None,
+    cell_type=None,
     additional_covariates=None,  
     library_col=None,
     min_cells_per_group=5,
@@ -38,10 +43,11 @@ def run_mast_deg(
     # ============================================
 
     # Subset adata
-    adata_subset = adata[
-        (adata.obs[cell_type_col] == cell_type) &
-        (adata.obs[condition_col].isin(contrast)) # select 2 LOD regions
-    ].copy()
+    if cell_type_col:
+        adata_subset = adata[
+            (adata.obs[cell_type_col] == cell_type) &
+            (adata.obs[condition_col].isin(contrast)) # select 2 LOD regions
+        ].copy()
 
     # Optional: cell type name crrection
     #adata_subset.obs[cell_type] = [ct.replace(" ", "_") for ct in adata_subset.obs[cell_type]]
@@ -347,3 +353,209 @@ def run_mast_deg(
     result["cell_type"] = cell_type
     
     return result
+
+
+def run_edger_analysis(
+    adata_pb,
+    contrast_variable,
+    contrast_test,
+    contrast_baseline,
+    covariates=None,
+    alpha=0.05,
+    lfc_threshold=0.5
+):
+    """
+    Run edgeR differential expression analysis on pseudobulk data.
+    
+    Parameters:
+    -----------
+    adata_pb : AnnData
+        Pseudobulk AnnData object with raw counts in .X
+    contrast_variable : str
+        Column name in .obs for the main comparison (e.g., 'condition')
+    contrast_test : str
+        Test level (e.g., 'diseased')
+    contrast_baseline : str
+        Baseline/reference level (e.g., 'healthy')
+    covariates : list, optional
+        List of covariate column names to include in model
+    alpha : float
+        FDR threshold for significance (default: 0.05)
+    lfc_threshold : float
+        Log2 fold change threshold for filtering (default: 0.5)
+        
+    Returns:
+    --------
+    dict with keys:
+        - 'results_df': DataFrame with all genes and statistics
+        - 'sig_results': DataFrame with significant genes only
+        - 'summary': Dict with summary statistics
+    """
+    
+    try:
+        # Check if edgeR is available
+        r('suppressPackageStartupMessages(library(edgeR))')
+    except Exception as e:
+        raise ImportError(f"edgeR not installed in R: {e}")
+    
+    try:
+        # ==========================================
+        # 1. PREPARE DATA
+        # ==========================================
+        
+        # Set reference level
+        adata_pb.obs[contrast_variable] = adata_pb.obs[contrast_variable].astype('category')
+        adata_pb.obs[contrast_variable] = adata_pb.obs[contrast_variable].cat.reorder_categories(
+            [contrast_baseline] + [c for c in adata_pb.obs[contrast_variable].cat.categories 
+                                   if c != contrast_baseline]
+        )
+        
+        # Build design formula
+        design_formula = f"~ {contrast_variable}"
+        if covariates:
+            for cov in covariates:
+                if adata_pb.obs[cov].dtype == 'object':
+                    adata_pb.obs[cov] = adata_pb.obs[cov].astype('category')
+            design_formula += " + " + " + ".join(covariates)
+        
+        # Extract counts (genes × samples)
+        counts = adata_pb.X
+        if hasattr(counts, 'toarray'):
+            counts = counts.toarray()
+        
+        counts_df = pd.DataFrame(
+            counts.T,
+            index=adata_pb.var_names,
+            columns=adata_pb.obs_names
+        )
+        
+        # Extract metadata
+        metadata_cols = [contrast_variable] + (covariates if covariates else [])
+        sample_metadata = adata_pb.obs[metadata_cols].copy()
+        
+        print(f"Design: {design_formula}")
+        print(f"Counts: {counts_df.shape[0]} genes × {counts_df.shape[1]} samples")
+        print(f"Groups: {sample_metadata[contrast_variable].value_counts().to_dict()}")
+        
+        # ==========================================
+        # 2. TRANSFER DATA TO R
+        # ==========================================
+        
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            r_counts = ro.conversion.py2rpy(counts_df)
+            r_metadata = ro.conversion.py2rpy(sample_metadata)
+        
+        ro.globalenv['counts_matrix'] = r_counts
+        ro.globalenv['sample_metadata'] = r_metadata
+        ro.globalenv['design_formula'] = design_formula
+        ro.globalenv['contrast_var'] = contrast_variable
+        ro.globalenv['contrast_test'] = contrast_test
+        
+        # ==========================================
+        # 3. RUN edgeR IN R
+        # ==========================================
+        
+        r('''
+            suppressPackageStartupMessages(library(edgeR))
+            
+            # Create DGEList
+            dge <- DGEList(counts = counts_matrix, samples = sample_metadata)
+            
+            # Design matrix
+            design <- model.matrix(as.formula(design_formula), data = sample_metadata)
+            
+            # Filter genes
+            keep <- filterByExpr(dge, design = design)
+            dge <- dge[keep, , keep.lib.sizes = FALSE]
+            
+            cat("Genes after filtering:", sum(keep), "\n")
+            
+            # Normalize (TMM)
+            dge <- calcNormFactors(dge, method = "TMM")
+            
+            # Estimate dispersion
+            dge <- estimateDisp(dge, design, robust = TRUE)
+            
+            cat("Common dispersion:", dge$common.dispersion, "\n")
+            
+            # Fit quasi-likelihood GLM
+            fit <- glmQLFit(dge, design, robust = TRUE)
+            
+            # Find coefficient
+            contrast_coef <- paste0(contrast_var, contrast_test)
+            if (!(contrast_coef %in% colnames(design))) {
+                possible <- grep(contrast_test, colnames(design), value = TRUE)
+                if (length(possible) > 0) {
+                    contrast_coef <- possible[1]
+                }
+            }
+            
+            cat("Testing coefficient:", contrast_coef, "\n")
+            
+            # Perform QL F-test
+            qlf <- glmQLFTest(fit, coef = contrast_coef)
+            
+            # Extract results
+            results_table <- as.data.frame(topTags(qlf, n = Inf, sort.by = "none"))
+            results_table$gene <- rownames(results_table)
+        ''')
+        
+        # ==========================================
+        # 4. GET RESULTS BACK TO PYTHON
+        # ==========================================
+        
+        with localconverter(ro.default_converter + pandas2ri.converter):
+            results_df = ro.conversion.rpy2py(ro.globalenv['results_table'])
+        
+        # Rename columns to standard format
+        results_df = results_df.rename(columns={
+            'logFC': 'log2FoldChange',
+            'logCPM': 'baseMean',
+            'PValue': 'pvalue',
+            'FDR': 'padj'
+        })
+        
+        # ==========================================
+        # 5. FILTER AND SUMMARIZE
+        # ==========================================
+        
+        # Filter significant results
+        sig = (results_df['padj'] <= alpha) & (np.abs(results_df['log2FoldChange']) >= lfc_threshold)
+        sig_results = results_df[sig].sort_values(by='log2FoldChange', ascending=False)
+        
+        # Calculate summary statistics
+        n_up = ((results_df['log2FoldChange'] > lfc_threshold) & (results_df['padj'] < alpha)).sum()
+        n_down = ((results_df['log2FoldChange'] < -lfc_threshold) & (results_df['padj'] < alpha)).sum()
+        
+        summary = {
+            'total_genes': len(results_df),
+            'significant_genes': sig.sum(),
+            'up_regulated': n_up,
+            'down_regulated': n_down,
+            'alpha': alpha,
+            'lfc_threshold': lfc_threshold
+        }
+        
+        # print(f"\n{'='*50}")
+        # print(f"edgeR Summary")
+        # print(f"{'='*50}")
+        # print(f"Total genes tested: {summary['total_genes']}")
+        # print(f"Significant DEGs: {summary['significant_genes']}")
+        # print(f"  Up-regulated: {summary['up_regulated']}")
+        # print(f"  Down-regulated: {summary['down_regulated']}")
+        
+        # ==========================================
+        # 6. RETURN RESULTS
+        # ==========================================
+        
+        return {
+            'results_df': results_df,
+            'sig_results': sig_results,
+            'summary': summary
+        }
+        
+    except Exception as e:
+        print(f"❌ edgeR failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None

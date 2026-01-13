@@ -157,16 +157,19 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
 
     print("Preprocessing done.")
 
-def reprocess_subset(adata, old_umap_name=""):
+def reprocess_subset(adata, old_umap_name="", filter_genes=True):
 
     # bring back counts to X
-    adata.X = adata.layers["counts"]
-    adata.obsm[f"{old_umap_name}_old_umap"] = adata.obsm["X_umap"].copy()
+    if "counts" in adata.layers:
+        adata.X = adata.layers["counts"]
+    if "X_umap" in adata.obsm:
+        adata.obsm[f"{old_umap_name}_old_umap"] = adata.obsm["X_umap"].copy()
 
     # Filter genes
-    print(f"   Genes before filtering: {adata.n_vars}")
-    sc.pp.filter_genes(adata, min_cells=3)
-    print(f"   Genes after filtering: {adata.n_vars}")
+    if filter_genes:
+        print(f"   Genes before filtering: {adata.n_vars}")
+        sc.pp.filter_genes(adata, min_cells=3)
+        print(f"   Genes after filtering: {adata.n_vars}")
 
     # reprocess
     preprocess(adata, n_pcs_elbow=30, n_hvg=3000, verbose=False)
