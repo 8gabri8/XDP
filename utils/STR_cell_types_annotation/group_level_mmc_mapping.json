@@ -510,8 +510,28 @@
 
   },
 
-  "mapping_MSN_for_zoning": {
-    "_description": "How to group MSN cells to get zoning from script (also the same of MSN paper). key=gorup_name, value=new merged name",
+
+    "grouping_for_MSN_QCed": {
+    "_description": "Only MSN cells and grouped in a way to be good fro QCed",
+    "_biology": "...",
+    
+    "STRd D1 Matrix MSN": "STR D1 Matrix MSN",
+    "STRv D1 MSN": "STR D1 Matrix MSN",
+
+    "STRd D2 Matrix MSN": "STR D2 Matrix MSN",
+    "STRv D2 MSN": "STR D2 Matrix MSN",
+
+    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
+    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
+    "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
+    "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN"
+
+  },
+
+  "mapping_coupling_for_zoning": {
+    "_description": "How to group cells to get zoning from script. key=mmc_grouo_name, value=name of the .h5ad taht continas relatve cells to use for mapping",
+    "_ATTENTION": "The item names MUST match the names of the h5ad files used for mapping (without undrescore).",
     "_biology": "...",
     
     "STRd D1 Matrix MSN": "STR D1 Matrix MSN",
@@ -523,12 +543,19 @@
     "Tafa1 D2 Matrix MSN": "STR D2 Matrix MSN",
 
     "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
+
     "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
 
     "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+
     "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
+
     "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
-    "Tafa1 STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN"
+    "Tafa1 STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
+
+    "OPC": "OPC",
+
+    "Astrocyte": "Astrocyte"
 
   },
 

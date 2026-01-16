@@ -23,6 +23,10 @@ while [[ "$#" -gt 0 ]]; do
 			output_path="$2"
 			shift
 			;;
+		-z|--zone_col)  # specifi name zone col
+            zone_col="$2"
+            shift
+            ;;
 		-c|--clobber)
 			clobber=1
 			;;
@@ -70,8 +74,8 @@ echo "get precomputed stats"
 if [ ! -e "${ref_dir}/precomputed_stats.h5" ] || [ "${clobber}" -eq 1 ]; then
 	python -m cell_type_mapper.cli.precompute_stats_scrattch \
 		--h5ad_path "${ref}" \
-		--hierarchy '["D1_zones_6_assigned_v2"]' \
-		--n_processors 4 \
+		--hierarchy "[\"${zone_col}\"]" \
+		--n_processors 16 \
 		--output_path "${output_path}/precomputed_stats.h5" \
 		--clobber True \
 		--normalization raw
