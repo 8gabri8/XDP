@@ -13,7 +13,445 @@ r = ro.r
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
+import decoupler as dc
+import pertpy as pt
 
+
+def convert_df_to_fig(df, title):
+    import matplotlib.pyplot as plt
+    
+    df = df.round(5)
+    df = df.reset_index()
+    
+    fig, ax = plt.subplots(figsize=(10, len(df)*0.5 + 1))
+    ax.axis('tight')
+    ax.axis('off')
+    
+    table = ax.table(cellText=df.values, 
+                     colLabels=df.columns,
+                     cellLoc='center',
+                     loc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(9)
+    table.scale(1, 1.5)
+    
+    plt.title(title, fontsize=12, pad=20)
+    plt.tight_layout()
+    
+    return fig  # Returns matplotlib figure
+
+def check_corr_cov_in_design(adata, DEG_FORMULA, corr_thr=0.7, split=" + "):
+    
+    # Get all variables from formula
+    vars_in_formula = DEG_FORMULA[2:].split(split)
+    print(DEG_FORMULA)
+    print(vars_in_formula)
+
+    # Extract data
+    df = adata.obs[vars_in_formula].copy()
+
+    # Encode categorical as numbers
+    for col in df.columns:
+        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
+            df[col] = pd.Categorical(df[col]).codes
+
+    # Calculate correlation
+    corr = df.corr()
+
+    # Plot
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(corr, annot=True, fmt='.2f', cmap='RdBu_r', 
+                center=0, vmin=-1, vmax=1, square=True)
+    plt.title('Variable Correlations')
+    plt.tight_layout()
+    plt.show()
+
+    # Find high correlations
+    print(f"\n High correlations (|r| > {corr_thr}):")
+    for i in range(len(corr)):
+        for j in range(i+1, len(corr)):
+            if abs(corr.iloc[i, j]) > corr_thr:
+                print(f"{corr.index[i]} <-> {corr.columns[j]}: r = {corr.iloc[i, j]:.3f}")
+
+
+def DEG_deseq2_edgeR(
+    adata_pb_all,             # AnnData object containing pseudobulk data
+    psuedobulk_group_for_deg, # current cell type to process
+    psuedobulk_group_for_deg_col, # relative col name
+    design_formula,           # Design formula for test
+    save_folder,              # Folder where to save results
+    SAMPLE_VARIABLE,          # column in adata.obs identifying samples/donors
+    CONTRAST_VARIABLE,        # column in adata.obs defining groups for DEG (e.g., disease/control)
+    COVARIATES_FOR_DEG,       # list of covariate column names to include in DEG
+    MIN_CELLS_PER_PSUDOCELL,  # minimum cells per pseudobulk sample
+    MIN_COUNTS_PER_PSEUDOCELL,# minimum counts per pseudobulk sample
+    MIN_PSEUDOCELL_PER_GROUP, # minimum pseudobulks per group to run DEG
+    MIN_COUNTS,               # min count filter for genes
+    LARGE_N,                  # min samples expressing gene
+    MIN_TOTAL_COUNTS,         # total counts across samples
+    MIN_PROP_BY_EXPR,         # min fraction of samples a gene is expressed in
+    MIN_PROP_BY_PROP,         # min fraction of cells expressing gene
+    MIN_SMPLS,                # min number of samples expressing gene
+    CONTRAST_BASELINE,        # baseline level for DEG contrast
+    CONTRAST_STIM,            # stimulated/condition group for DEG contrast
+    ALPHA_MULTIPLE_TEST,      # adjusted p-value threshold
+    LOGFC_THR,                # log fold change threshold
+    PVAL_THR,                 # p-value threshold for volcano plots
+    N_TOP_GENES_TO_NAME,      # how many top genes to label in volcano
+    GENE_COL_NAME="gene",     # column name for gene in DEG results
+    LOGFC_COL_NAME="log_fc",  # column name for log fold change
+    ADJ_P_VAL_COL_NAME="adj_p_value", # column name for adjusted p-value
+    calculate_umap=False, 
+    split= " + "
+):
+    
+    # Prepare for capturing figures
+    figures = []  # Store all figures here
+    # Save orinal show
+    original_show = plt.show
+    # Create dummy show that does nothing
+    def dummy_show(*args, **kwargs):
+        pass  # Do nothing - don't display or clear
+    # Replace show
+    plt.show = dummy_show
+
+    print(f"""
+            #########################
+            ### Processing psudobulk group: {psuedobulk_group_for_deg}
+            #########################
+            """)
+
+    # Subset to current cimbination
+        # ATTENTION: index must contain group name
+    adata_pb_tmp = adata_pb_all[adata_pb_all.obs[psuedobulk_group_for_deg_col] == psuedobulk_group_for_deg].copy()
+
+
+    #############################
+
+    # Chnage design matrix to remove cov with None
+    vars_in_formula = design_formula[2:].split(split)
+    for var in vars_in_formula:
+        if (adata_pb_all.obs[var].isna().sum() > 0):
+            design_formula = design_formula.replace(f" + {var}", "")
+            print(f"ATTENTION: {var} removed")
+    print(f"\nCorrected dsign Matrix: {design_formula}")
+
+     #############################
+
+    # Check covaritne correlation
+    check_corr_cov_in_design(adata_pb_all, design_formula, corr_thr=0.7, split=split)
+    figures.append(plt.gcf())
+
+    #############################
+
+    # Umap this cell type
+
+    if calculate_umap:
+        ...
+        # TODO
+
+    #############################
+
+    # Filter sample/pesudocells
+
+    # Plot psuedocells
+    dc.pl.filter_samples(
+        adata=adata_pb_tmp,
+        groupby=[CONTRAST_VARIABLE],
+        min_cells=MIN_CELLS_PER_PSUDOCELL,
+        min_counts=MIN_COUNTS_PER_PSEUDOCELL,
+        figsize=(5, 5),
+    )
+    figures.append(plt.gcf())
+
+    # Filer bad pseudocells
+    dc.pp.filter_samples(adata_pb_tmp, min_cells=MIN_CELLS_PER_PSUDOCELL, min_counts=MIN_COUNTS_PER_PSEUDOCELL)
+
+    # Plot how many remainin
+    # dc.pl.obsbar(adata=adata_pb_tmp, y=CT_FOR_DEG_VARIABLE, hue=CONTRAST_VARIABLE, figsize=(5, 2))
+    # figures.append(plt.gcf())
+
+    # Stop if we dont have enoght sample per group
+    group_counts = adata_pb_tmp.obs[CONTRAST_VARIABLE].value_counts()
+    print(f"Samples per group: {dict(group_counts)}")
+
+    if any(group_counts < MIN_PSEUDOCELL_PER_GROUP):
+        print(f"   Insufficient samples: {dict(group_counts)}")
+        print(f"   Need ≥{MIN_PSEUDOCELL_PER_GROUP} per group. Skipping this combination.")
+        return  # Skip this cell_type × zone
+
+    #############################
+
+    # Variance Exploration
+
+    # Store raw counts in layers
+    adata_pb_tmp.layers["counts"] = adata_pb_tmp.X.copy()
+    # Normalize, scale and compute pca
+    sc.pp.normalize_total(adata_pb_tmp, target_sum=1e4)
+    sc.pp.log1p(adata_pb_tmp)
+    sc.pp.scale(adata_pb_tmp, max_value=10)
+    sc.tl.pca(adata_pb_tmp)
+    # Return raw counts to X
+    dc.pp.swap_layer(adata=adata_pb_tmp, key="counts", inplace=True)
+
+    # one-way ANOVA --> Which PCA components are most strongly associated with differences between states
+    # High F-statistic / low p-value --> That PCA axis strongly separates healthy vs diseased.
+    dc.tl.rankby_obsm(adata_pb_tmp, key="X_pca", 
+                        obs_keys=[CONTRAST_VARIABLE]) # Only categoridal covariates
+    sc.pl.pca_variance_ratio(adata_pb_tmp)
+    figures.append(plt.gcf())
+    dc.pl.obsm(adata=adata_pb_tmp, nvar=5, titles=["PC scores", "Adjusted p-values"], figsize=(5, 5))
+    figures.append(plt.gcf())
+
+    # PCA plot colored by state
+    sc.pl.pca(
+        adata_pb_tmp,
+        color=[SAMPLE_VARIABLE, CONTRAST_VARIABLE],
+        ncols=3,
+        size=300,
+        frameon=True,
+        components=["1,2"]
+    )
+    figures.append(plt.gcf())
+
+    # Gens drivin PC1
+    loadings = adata_pb_tmp.varm["PCs"]
+    pc1 = loadings[:, 0]
+    genes = adata_pb_tmp.var_names
+    df_pc1 = pd.DataFrame({
+        "gene": genes,
+        "loading": pc1
+    }).sort_values("loading", ascending=False)
+    #display(df_pc1)
+    figures.append(convert_df_to_fig(pd.concat([df_pc1[0:10], df_pc1[-10:]]), "PC1 gene loadings"))
+
+    #############################
+
+    # Filter noisy/low wxpressed genes (cell type level)
+
+    # Plot (not filter yet)
+        # genes in upper-rught quadrant are kept
+    dc.pl.filter_by_expr(
+        # TEST: A gene is kept if it 
+        #   - has at least "min_count" counts in at least "large_n" samples AND
+        #   - its total count across all samples is ≥ "min_total_count" AND
+        #   - is expressed in at least "min_prop" fraction of samples
+        adata=adata_pb_tmp,
+        group=CONTRAST_VARIABLE, # Column in obs defining biological groups (e.g. disease / condition)
+
+        min_count=MIN_COUNTS, 
+        large_n=LARGE_N, 
+        min_total_count=MIN_TOTAL_COUNTS, 
+
+        min_prop=MIN_PROP_BY_EXPR, # gene must be expressed in at least this fraction of samples
+    )
+    figures.append(plt.gcf())
+
+    # Plot (not filter yet)
+        # genes on the right are kept
+    dc.pl.filter_by_prop(
+        # TEST: A gene is kept if it
+        #   - is detected in ≥ "min_prop" of cells
+        #   - in at least "min_smpls" samples.
+        adata=adata_pb_tmp,
+        min_prop=MIN_PROP_BY_PROP,
+        min_smpls=MIN_SMPLS,
+    )
+    figures.append(plt.gcf())
+
+    # Apply filters
+    dc.pp.filter_by_expr(adata=adata_pb_tmp, group=CONTRAST_VARIABLE,min_count=MIN_COUNTS, large_n=LARGE_N, min_total_count=MIN_TOTAL_COUNTS, min_prop=MIN_PROP_BY_EXPR)
+    dc.pp.filter_by_prop(adata=adata_pb_tmp,min_prop=MIN_PROP_BY_PROP,min_smpls=MIN_SMPLS)
+
+
+    #############################
+
+    # # Check Multi-collinaarty covariates
+
+    # # Extract covariate data
+    # df = adata_pb_tmp.obs[COVARIATES_FOR_DEG].copy()
+    
+    # # Calculate correlation matrix (Pearson by default)
+    # corr_matrix = df.corr()
+    
+    # # Create plot
+    # fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # # Heatmap with annotations
+    # sns.heatmap(
+    #     corr_matrix,
+    #     annot=True,           # Show correlation values
+    #     fmt='.2f',            # 2 decimal places
+    #     cmap='coolwarm',      # Red=positive, Blue=negative
+    #     vmin=-1, vmax=1,      # Correlation range
+    #     center=0,             # Center colormap at 0
+    #     square=True,          # Square cells
+    #     cbar_kws={'label': 'Pearson Correlation'},
+    #     ax=ax
+    # )
+    
+    # plt.title('Covariate Correlations', fontsize=14, pad=20)
+    # plt.tight_layout()
+
+    # figures.append(fig)
+
+    #############################
+
+    # Create Design formual
+
+    print(f"\nDesign formula: {design_formula}\n")
+
+    #############################
+
+    # Perform DEG: EdgeR
+
+    edgr = pt.tl.EdgeR(
+            adata_pb_tmp, 
+            design_formula,
+            layer=None)
+
+    edgr.fit()
+
+    contrast = edgr.contrast(
+        column=CONTRAST_VARIABLE, 
+        baseline=CONTRAST_BASELINE, 
+        group_to_compare=CONTRAST_STIM)
+
+    # Get desidered constartc
+    res_df_edgeR = (
+        edgr.test_contrasts(
+            contrast,
+            adjust_method='BH', 
+            alpha=ALPHA_MULTIPLE_TEST
+        )
+        .rename(columns={"variable": GENE_COL_NAME, "log_fc":LOGFC_COL_NAME, "adj_p_value":ADJ_P_VAL_COL_NAME})
+        .sort_values(LOGFC_COL_NAME)
+    )
+
+    # add greaidne gene col
+    res_df_edgeR["method"] = "edgeR"
+    res_df_edgeR["is_significant"] = (res_df_edgeR[ADJ_P_VAL_COL_NAME] <= ALPHA_MULTIPLE_TEST) & (np.abs(res_df_edgeR[LOGFC_COL_NAME])) >= LOGFC_THR
+
+    # Save df significative
+    res_df_edgeR_sig = res_df_edgeR[res_df_edgeR["is_significant"]]
+    figures.append(convert_df_to_fig(pd.concat([res_df_edgeR_sig[0:10], res_df_edgeR_sig[-10:]])[[GENE_COL_NAME, LOGFC_COL_NAME, ADJ_P_VAL_COL_NAME]], "EdgeR Results Filtered"))
+
+    #display(res_df_edgeR_sig)
+
+    fig = edgr.plot_volcano(
+                    res_df_edgeR, 
+                    log2fc_thresh=LOGFC_THR,
+                    pval_thresh=PVAL_THR,
+                    log2fc_col=LOGFC_COL_NAME,
+                    pvalue_col=ADJ_P_VAL_COL_NAME,
+                    symbol_col=GENE_COL_NAME,
+                    to_label=N_TOP_GENES_TO_NAME,
+                    return_fig=True,
+                    )
+    figures.append(fig)
+
+
+    #############################
+
+    # Perform DEG: Deseq2
+
+    pds2 = pt.tl.PyDESeq2(
+            adata_pb_tmp, 
+            design_formula,
+            layer=None)
+
+    pds2.fit()
+
+    contrast = pds2.contrast(
+        column=CONTRAST_VARIABLE, 
+        baseline=CONTRAST_BASELINE, 
+        group_to_compare=CONTRAST_STIM)
+
+    # Get desidered constartc
+    res_df_pds2 = (
+        pds2.test_contrasts(
+            contrast,
+            alpha=ALPHA_MULTIPLE_TEST
+        )
+        .rename(columns={"variable": GENE_COL_NAME, "log_fc":LOGFC_COL_NAME, "adj_p_value":ADJ_P_VAL_COL_NAME})
+        .sort_values(LOGFC_COL_NAME)
+    )
+
+    # add greaidne gene col
+    res_df_pds2["method"] = "Deseq2"
+    res_df_pds2["is_significant"] = (res_df_pds2[ADJ_P_VAL_COL_NAME] <= ALPHA_MULTIPLE_TEST) & (np.abs(res_df_pds2[LOGFC_COL_NAME])) >= LOGFC_THR
+
+    # Save df significative
+    res_df_pds2_sig = res_df_pds2[res_df_pds2["is_significant"]]
+    figures.append(convert_df_to_fig(pd.concat([res_df_pds2_sig[0:10], res_df_pds2_sig[-10:]])[[GENE_COL_NAME, LOGFC_COL_NAME, ADJ_P_VAL_COL_NAME]], "Deseq2 Results Filtered"))
+
+    #display(res_df_pds2_sig)
+
+    fig = pds2.plot_volcano(
+                    res_df_pds2, 
+                    log2fc_thresh=LOGFC_THR,
+                    pval_thresh=PVAL_THR,
+                    log2fc_col=LOGFC_COL_NAME,
+                    pvalue_col=ADJ_P_VAL_COL_NAME,
+                    symbol_col=GENE_COL_NAME,
+                    to_label=N_TOP_GENES_TO_NAME,
+                    return_fig=True,
+                    )
+    figures.append(fig)
+
+    
+    #############################
+
+    # Merge df and save
+
+    output_file = f'{save_folder}/deg_df.csv'
+    df_merged = pd.concat([res_df_edgeR, res_df_pds2])
+    df_merged.to_csv(output_file)
+
+    #############################
+
+    # Save pdf
+
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    with PdfPages(f'{save_folder}/images.pdf') as pdf:
+        for fig in figures:
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
+    figures.clear()  # Clear the list
+
+
+
+    # Report oringla show
+    plt.show = original_show
+
+    return df_merged
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########################################
+###########################################à
+############################################
+################################################à
 
 def run_mast_deg(
     adata,
