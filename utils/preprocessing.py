@@ -17,7 +17,7 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
 
-def plot_qc_metrics(adata):
+def plot_qc_metrics(adata, pct_intronic_col="pct_intronic", Class_bootstrapping_probability_col="Class_bootstrapping_probability"):
 
     fig, axes = plt.subplots(2,3, figsize=(15, 10))
 
@@ -34,7 +34,9 @@ def plot_qc_metrics(adata):
             # Long left tail: Presence of empty droplets or broken cells
             # peask less than 7
     x = adata.obs["total_counts"]
+    x = x[x > 0]
     bins = np.logspace(np.log10(x.min()), np.log10(x.max()), 100)
+    axes[0].clear()
     sns.histplot(x, bins=bins, kde=False, ax=axes[0])
     axes[0].set_title("Total UMI counts per cell")
     axes[0].set_ylabel("Number of cells")
@@ -60,16 +62,22 @@ def plot_qc_metrics(adata):
             # Strong positive correlation: Diagonal line from bottom-left to top-right: More total counts = more genes detected
         # BAD
             #  Cells in bottom-left corner (low counts, low genes) --< Empty droplets or debris
+
+    # Sort data so highest MT% values are plotted last (on top)
+    sorted_idx = adata.obs["pct_counts_mt"].argsort()
+
     sns.scatterplot(
-        x=adata.obs["log1p_total_counts"],
-        y=adata.obs["log1p_n_genes_by_counts"],
-        hue=adata.obs["pct_counts_mt"],
+        x=adata.obs["log1p_total_counts"].iloc[sorted_idx],
+        y=adata.obs["log1p_n_genes_by_counts"].iloc[sorted_idx],
+        hue=adata.obs["pct_counts_mt"].iloc[sorted_idx],
         ax=axes[2],
-        s=30,        # point size
-        linewidth=0, 
+        s=3,
+        linewidth=0,
         palette="viridis"
     )
-    axes[2].set_title("Counts vs GenesColored by % MT")
+    axes[2].set_title("Counts vs Genes Colored by % MT")
+    axes[2].set_xlabel("log1p(total counts)")
+    axes[2].set_ylabel("log1p(n genes)")
 
     # --- 4. % introns ---
         # GOOD
@@ -77,7 +85,7 @@ def plot_qc_metrics(adata):
         # BAD
             # having 2 peaks
 
-    sns.histplot(adata.obs["pct_intronic"], bins=100, kde=False, ax=axes[3])
+    sns.histplot(adata.obs[pct_intronic_col], bins=100, kde=False, ax=axes[3])
     axes[3].set_title("Total percnet introns per cell")
     axes[3].set_ylabel("Number of cells")
     axes[3].set_xlabel("Percent intornic")
@@ -87,6 +95,7 @@ def plot_qc_metrics(adata):
 
         # BAD
     x = adata.obs["n_genes_by_counts"]
+    x = x[x > 0]
     bins = np.logspace(np.log10(x.min()), np.log10(x.max()), 100)
     sns.histplot(x, bins=bins, kde=False, ax=axes[4])
     axes[4].set_title("Total genes per cell")
@@ -97,12 +106,13 @@ def plot_qc_metrics(adata):
     # --- 6. mapmycell probs ---
         # GOOD
 
-        # BAD
-    axes[5].hist(
-        adata.obs['Class_bootstrapping_probability'].dropna(),
-        bins=100, log=True
-    )
-    axes[5].set_title("Bootstrapping probability")
+    if Class_bootstrapping_probability_col:
+            # BAD
+        axes[5].hist(
+            adata.obs[Class_bootstrapping_probability_col].dropna(),
+            bins=100, log=True
+        )
+        axes[5].set_title("Bootstrapping probability")
 
     #plt.tight_layout()
     plt.show()

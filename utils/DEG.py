@@ -3,6 +3,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import os
+import subprocess
 
 from scipy import sparse
 from anndata import AnnData
@@ -73,7 +75,6 @@ def check_corr_cov_in_design(adata, DEG_FORMULA, corr_thr=0.7, split=" + "):
             if abs(corr.iloc[i, j]) > corr_thr:
                 print(f"{corr.index[i]} <-> {corr.columns[j]}: r = {corr.iloc[i, j]:.3f}")
 
-
 def DEG_deseq2_edgeR(
     adata_pb_all,             # AnnData object containing pseudobulk data
     psuedobulk_group_for_deg, # current cell type to process
@@ -82,7 +83,6 @@ def DEG_deseq2_edgeR(
     save_folder,              # Folder where to save results
     SAMPLE_VARIABLE,          # column in adata.obs identifying samples/donors
     CONTRAST_VARIABLE,        # column in adata.obs defining groups for DEG (e.g., disease/control)
-    COVARIATES_FOR_DEG,       # list of covariate column names to include in DEG
     MIN_CELLS_PER_PSUDOCELL,  # minimum cells per pseudobulk sample
     MIN_COUNTS_PER_PSEUDOCELL,# minimum counts per pseudobulk sample
     MIN_PSEUDOCELL_PER_GROUP, # minimum pseudobulks per group to run DEG
@@ -427,7 +427,73 @@ def DEG_deseq2_edgeR(
 
     return df_merged
 
-
+def run_nebula_parallel_script(
+    path_qs: str,
+    path_nebula_script: str,
+    id_col: str = "donor_id",
+    covs: list = None,
+    offset_col: str = "nCount_RNA",
+    n_folds: int = 8,
+    n_cores: int = 16,
+    save_tmp: bool = False,
+    suffix: str = None,
+):
+    """
+    Run NEBULA analysis in parallel using the bash orchestration script.
+    
+    Returns:
+    --------
+    str : Path to the combined results file
+    """
+    
+    # Build command
+    cmd = [
+        "bash",
+        path_nebula_script,
+        "--path", path_qs,
+        "--id-col", id_col,
+        "--offset-col", offset_col,
+        "--n-folds", str(n_folds),
+        "--n-cores", str(n_cores),
+        "--save-tmp", "1" if save_tmp else "0"
+    ]
+    
+    # Add covariates if provided
+    if covs:
+        cmd.extend(["--covs", ",".join(covs)])
+    
+    # Add suffix if provided
+    if suffix:
+        cmd.extend(["--suffix", suffix])
+    
+    print(f"Running command: {' '.join(cmd)}")
+    
+    # Run the script
+    try:
+        result = subprocess.run(
+            cmd,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        
+        print("STDOUT:")
+        print(result.stdout)
+        
+        # Parse output to get final results path
+        for line in result.stdout.split('\n'):
+            if 'Final combined results:' in line:
+                final_path = line.split('Final combined results:')[1].strip()
+                return final_path
+        
+        return None
+    
+    except subprocess.CalledProcessError as e:
+        print("❌ ERROR running NEBULA script!")
+        print(f"\nCommand: {' '.join(cmd)}")
+        print(f"\nSTDOUT:\n{e.stdout}")  # ADD THIS!
+        print(f"\nSTDERR:\n{e.stderr}")  # ADD THIS!
+        raise
 
 
 
