@@ -22,7 +22,10 @@ suppressMessages(suppressWarnings({
     library(future)
     #future::plan(multicore, workers = 4)  
 
-    source(file.path(script_dir, "../utils.R"))
+    #source(file.path(script_dir, "../utils.R"))
+    print(file.path(script_dir, "utils.R"))
+    source(file.path(script_dir, "utils.R"))
+
     g = glue::glue
 }))
 
@@ -131,7 +134,32 @@ if (length(missing_cols) > 0){
 
 
 print ("**************** PREPARING DATA FOR NEBULA ****************")
-seuratdata = scToNeb(obj = sobj, assay = "RNA", id = ID_COL, pred = COVS[!grepl(":|\\*", COVS)], offset=OFFSET_COL)
+#seuratdata = scToNeb(obj = sobj, assay = "RNA", id = ID_COL, pred = COVS[!grepl(":|\\*", COVS)], offset=OFFSET_COL)
+
+# Manual extraction (Seurat v5 compatible)
+print("Extracting count data manually (Seurat v5 compatible)")
+
+# Get counts matrix
+count_matrix = GetAssayData(sobj, assay = "RNA", layer = "counts")  # Changed slot→layer
+
+# Get metadata columns
+meta_data = sobj@meta.data
+
+# Extract predictor columns (excluding interactions)
+pred_cols = COVS[!grepl(":|\\*", COVS)]
+pred_data = meta_data[, pred_cols, drop = FALSE]
+
+# Create seuratdata structure manually
+seuratdata = list(
+  count = as.matrix(count_matrix),
+  id = meta_data[[ID_COL]],
+  pred = pred_data,
+  offset = meta_data[[OFFSET_COL]]
+)
+
+print(paste("Extracted", nrow(seuratdata$count), "genes and", ncol(seuratdata$count), "cells"))
+
+
 
 df = model.matrix(
   as.formula(g("~{paste(COVS, collapse='+')}")), 
@@ -191,6 +219,14 @@ re_ln = tryCatch({
 
 print(g("**************** SAVING RESULTS to {file.path(de_dir, slogan)} ****************"))
 qsave(re_ln, file=outfile)
+
+res_df <- re_ln$summary
+write.csv(
+  res_df,
+  file = "nebula_ln_results.csv",
+  row.names = FALSE
+)
+
 print("**************** ALL DONE ****************")
 
 

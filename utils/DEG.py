@@ -75,6 +75,118 @@ def check_corr_cov_in_design(adata, DEG_FORMULA, corr_thr=0.7, split=" + "):
             if abs(corr.iloc[i, j]) > corr_thr:
                 print(f"{corr.index[i]} <-> {corr.columns[j]}: r = {corr.iloc[i, j]:.3f}")
 
+def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARIATES_FOR_DEG, layer="counts", INTERESTING_COV=[], CONTRAST_VARIABLE=None, 
+               MIN_CELLS_PER_PSUDOCELL=10,MIN_COUNTS_PER_PSEUDOCELL=1000, filter_genes=False,
+               MIN_COUNTS=10,LARGE_N=10, MIN_TOTAL_COUNTS=15, MIN_PROP_BY_EXPR=0.5,MIN_PROP_BY_PROP=0.1,MIN_SMPLS=2, 
+               ):
+    
+    # Pusdobulk 
+    # comnination (donor_id x Group_name x zone)
+    print("\nPsudobulking")
+    adata_pb_all = dc.pp.pseudobulk(
+        adata=adata,
+        sample_col=SAMPLE_VARIABLE, # Creates ONE pseudobulk per unique value in this column
+        groups_col=[*COV_FOR_PSEUDOBULK], # Would create separate pseudobulks for each combination (together with sample_col)
+        layer=layer, # use .X with raw counts
+        skip_checks=True,
+        mode="sum",
+    )
+
+    # Col with all rpeusdbulk name concatemated
+    adata_pb_all.obs["pseudobulk_group"] = (
+        adata_pb_all.obs[[SAMPLE_VARIABLE] + COV_FOR_PSEUDOBULK]
+        .astype(str)          # make sure all values are strings
+        .agg("-".join, axis=1)  # join cell-wise
+    )
+    adata_pb_all.obs[GROUP_DEG_COL] = (
+        adata_pb_all.obs[COV_FOR_PSEUDOBULK]
+        .astype(str)          # make sure all values are strings
+        .agg("-".join, axis=1)  # join cell-wise
+    )
+
+    # Check row counts in .X
+    print(adata_pb_all.X)
+
+    ##################à
+
+    # Add covarite aggrgeated values
+    print("\nAdding metadata")
+    agg_dict = {}
+
+    for cov in [*COVARIATES_FOR_DEG, *INTERESTING_COV]:
+        if pd.api.types.is_numeric_dtype(adata.obs[cov]):
+            agg_dict[cov] = "mean"
+        else:
+            agg_dict[cov] = "first"
+    print(agg_dict)
+
+    celltype_zone_metadata = adata.obs.groupby([SAMPLE_VARIABLE, *COV_FOR_PSEUDOBULK]).agg(
+        agg_dict
+    )
+
+    # Reset index to turn groupby keys into columns 
+    celltype_zone_metadata = celltype_zone_metadata.reset_index()
+    #print(celltype_zone_metadata)
+
+    # Drop old covariate columns to avoid duplicates, then merge
+    adata_pb_all.obs = (
+        adata_pb_all.obs
+        .drop(columns=list(agg_dict.keys()), errors='ignore')  # Drop only the aggregated covariates
+        .merge(
+            celltype_zone_metadata,
+            on=[SAMPLE_VARIABLE, *COV_FOR_PSEUDOBULK],  # Join on pseudobulk keys
+            how='left'
+        )
+    )
+    adata_pb_all.obs.set_index("pseudobulk_group", inplace=True)
+
+    print(adata_pb_all.obs.head(3))
+    print(adata_pb_all)
+
+    ##################à
+
+    # QC filters
+
+    # Filer bad pseudocells
+    dc.pl.filter_samples(
+        adata=adata_pb_all,
+        groupby=None,
+        min_cells=MIN_CELLS_PER_PSUDOCELL,
+        min_counts=MIN_COUNTS_PER_PSEUDOCELL,
+        figsize=(5, 5))
+    dc.pp.filter_samples(adata_pb_all, min_cells=MIN_CELLS_PER_PSUDOCELL, min_counts=MIN_COUNTS_PER_PSEUDOCELL)
+
+    # Filter genes
+    if filter_genes:
+        dc.pp.filter_by_expr(adata=adata_pb_all, group=GROUP_DEG_COL,min_count=MIN_COUNTS, large_n=LARGE_N, min_total_count=MIN_TOTAL_COUNTS, min_prop=MIN_PROP_BY_EXPR)
+        dc.pp.filter_by_prop(adata=adata_pb_all,min_prop=MIN_PROP_BY_PROP,min_smpls=MIN_SMPLS)
+
+    print("\nAfter Filterign:")
+    print(adata_pb_all)
+
+    ########################
+
+
+    # Normalise
+    adata_pb_all.layers["counts"] = adata_pb_all.X.copy()
+    import scipy.sparse as sp
+    adata_pb_all.layers["scaled"] = np.zeros(adata_pb_all.shape) #sp.csr_matrix(adata_pb_all.shape)
+
+    for group in adata_pb_all.obs[GROUP_DEG_COL].unique():
+        print("Normalising: ", group)
+
+        mask = adata_pb_all.obs[GROUP_DEG_COL] == group
+        adata_pb_tmp = adata_pb_all[mask].copy()
+
+        sc.pp.normalize_total(adata_pb_tmp, target_sum=1e4, inplace=True)
+        sc.pp.log1p(adata_pb_tmp)
+        sc.pp.scale(adata_pb_tmp, max_value=10) #z-score normalization
+
+        # Write back to main object
+        adata_pb_all.layers["scaled"][mask] = adata_pb_tmp.X
+
+    return adata_pb_all
+
 def DEG_deseq2_edgeR(
     adata_pb_all,             # AnnData object containing pseudobulk data
     psuedobulk_group_for_deg, # current cell type to process
