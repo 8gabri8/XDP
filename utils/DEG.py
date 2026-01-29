@@ -10,6 +10,12 @@ from scipy import sparse
 from anndata import AnnData
 from tqdm import tqdm
 
+import seaborn as sns
+from statsmodels.stats.multitest import multipletests
+from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+from adjustText import adjust_text
+import matplotlib.patheffects as PathEffects
+
 import rpy2.robjects as ro
 r = ro.r
 from rpy2.robjects import pandas2ri
@@ -170,7 +176,7 @@ def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARI
     # Normalise
     adata_pb_all.layers["counts"] = adata_pb_all.X.copy()
     import scipy.sparse as sp
-    adata_pb_all.layers["scaled"] = np.zeros(adata_pb_all.shape) #sp.csr_matrix(adata_pb_all.shape)
+    adata_pb_all.layers["log1p_norm"] = np.zeros(adata_pb_all.shape) #sp.csr_matrix(adata_pb_all.shape)
 
     for group in adata_pb_all.obs[GROUP_DEG_COL].unique():
         print("Normalising: ", group)
@@ -180,10 +186,10 @@ def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARI
 
         sc.pp.normalize_total(adata_pb_tmp, target_sum=1e4, inplace=True)
         sc.pp.log1p(adata_pb_tmp)
-        sc.pp.scale(adata_pb_tmp, max_value=10) #z-score normalization
+        #sc.pp.scale(adata_pb_tmp, max_value=10) #z-score normalization
 
         # Write back to main object
-        adata_pb_all.layers["scaled"][mask] = adata_pb_tmp.X
+        adata_pb_all.layers["log1p_norm"][mask] = adata_pb_tmp.X
 
     return adata_pb_all
 
@@ -607,11 +613,181 @@ def run_nebula_parallel_script(
         print(f"\nSTDERR:\n{e.stderr}")  # ADD THIS!
         raise
 
+def plot_vulcano(df, logfc_col, pval_col, gene_col, 
+                  categories=None, 
+                  pval_thresh=0.05, logfc_thresh=0.5,
+                  to_label=10, figsize=(10, 8), max_y=None):
+    """
+    Simple volcano plot with category coloring.
+    
+    Parameters:
+    -----------
+    df : pd.DataFrame
+        Data with genes, logFC, and p-values
+    logfc_col : str
+        Column name for log fold change
+    pval_col : str
+        Column name for p-values
+    gene_col : str
+        Column name for gene names
+    categories : dict
+        {'Category Name': ([gene1, gene2, ...], 'color'), ...}
+        Example: {'TP': (['GENE1', 'GENE2'], 'green'), 
+                  'FP': (['GENE3'], 'red')}
+    pval_thresh : float
+        P-value threshold for horizontal line
+    logfc_thresh : float
+        LogFC threshold for vertical lines
+    to_label : int
+        Number of top genes to label (per direction: up/down)
+    figsize : tuple
+        Figure size
+    max_y : float, optional
+        Maximum y-axis value (clips -log10p for visualization)
+    """
+    
+    df = df.copy()
+    
+    # Drop NaN values
+    df = df.dropna(subset=[logfc_col, pval_col, gene_col])
+    
+    # Handle zero p-values
+    if (df[pval_col] == 0).any():
+        print(f'Warning: {(df[pval_col] == 0).sum()} genes with p-value=0, replacing with 1e-323')
+        df.loc[df[pval_col] == 0, pval_col] = 1e-323
+    
+    # Calculate -log10(p)
+    df['-log10p'] = -np.log10(df[pval_col])
+    
+    # Clip if requested
+    if max_y is not None:
+        clipped = (df['-log10p'] > max_y).sum()
+        if clipped > 0:
+            print(f'Clipping {clipped} genes with -log10(p) > {max_y}')
+        df['-log10p'] = df['-log10p'].clip(upper=max_y)
+    
+    # Assign each gene to a category or 'Other'
+    gene_to_category = {}
+    category_colors = {}
+    
+    if categories:
+        for cat_name, (gene_list, color) in categories.items():
+            category_colors[cat_name] = color
+            for gene in gene_list:
+                gene_to_category[gene] = cat_name
+    
+    df['category'] = df[gene_col].map(gene_to_category).fillna('Other')
+    
+    # Plot
+    fig, ax = plt.subplots(figsize=figsize)
+    
+    # Plot 'Other' first (gray background)
+    other_mask = df['category'] == 'Other'
+    if other_mask.any():
+        ax.scatter(df.loc[other_mask, logfc_col], df.loc[other_mask, '-log10p'],
+                  c='lightgray', alpha=0.5, s=20, label='Other', zorder=1, edgecolors='none')
+    
+    # Plot each category
+    for cat in df['category'].unique():
+        if cat == 'Other':
+            continue
+        mask = df['category'] == cat
+        ax.scatter(df.loc[mask, logfc_col], df.loc[mask, '-log10p'],
+                  c=category_colors[cat], alpha=0.7, s=30, label=cat, zorder=2, edgecolors='none')
+    
+    # Threshold lines
+    ax.axhline(-np.log10(pval_thresh), ls='--', c='black', lw=2, alpha=0.5, zorder=0)
+    ax.axvline(logfc_thresh, ls='--', c='black', lw=2, alpha=0.5, zorder=0)
+    ax.axvline(-logfc_thresh, ls='--', c='black', lw=2, alpha=0.5, zorder=0)
+    
+    # Label top genes (like original: top UP and top DOWN separately)
+    df['sorter'] = df['-log10p'] * df[logfc_col]  # Signed score
+    
+    # Top UP genes (positive logFC)
+    top_up = df[df[logfc_col] > 0].nlargest(to_label, 'sorter')
+    # Top DOWN genes (negative logFC)
+    top_down = df[df[logfc_col] < 0].nsmallest(to_label, 'sorter')
+    
+    label_df = pd.concat([top_up, top_down])
+    
+    texts = []
+    for _, row in label_df.iterrows():
+        txt = ax.text(row[logfc_col], row['-log10p'], row[gene_col], 
+                     fontsize=9, weight='bold')
+        txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+        texts.append(txt)
+    
+    if len(texts) > 0:
+        adjust_text(texts, arrowprops=dict(arrowstyle='-', color='k', lw=1))
+    
+    # Styling
+    ax.set_xlabel('Log2 Fold Change', fontsize=12, weight='bold')
+    ax.set_ylabel('-Log10(P-value)', fontsize=12, weight='bold')
+    ax.legend(loc='upper right', frameon=False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.tick_params(width=2)
+    
+    plt.tight_layout()
+    plt.show()
+    
+    return df
 
+def plot_nebula_results(df_nebula, df_true_degs, col_p, col_logFC, col_gene, add_adj_p_col=True, PVAL_THR=0.05, LOGFC_THR=0.5, max_FDR=5):
 
+    # Filer useful col
+    df_nebula = df_nebula[[col_gene, col_logFC, col_p]].copy()
 
+    # Calute adj p-pval
+    if add_adj_p_col:
+        col_p_adj = f"adj_{col_p}"
+        df_nebula[col_p_adj] = multipletests(df_nebula[col_p],method="fdr_bh")[1]
+    else:
+        col_p_adj = col_p
 
+    # Add cols
+    df_nebula["is_significant"] = (df_nebula[col_p_adj] <= PVAL_THR) & (np.abs(df_nebula[col_logFC]) >= LOGFC_THR)
+    df_nebula["is_true_DEG"] = df_nebula[col_gene].isin(df_true_degs["gene_id"].tolist())
 
+    # Confussion matrix
+    cm_df = pd.crosstab(df_nebula["is_true_DEG"], df_nebula["is_significant"])#, normalize="all")
+    #cm_df = cm_df.reindex(index=[0,1], columns=[0,1], fill_value=0)
+    sns.heatmap(cm_df, annot=True, cmap="Blues"); plt.xlabel("Predicted"); plt.ylabel("True"); plt.show()
+
+    # Calculate metrics
+    precision = precision_score(df_nebula["is_true_DEG"], df_nebula["is_significant"])
+    recall = recall_score(df_nebula["is_true_DEG"], df_nebula["is_significant"])
+    f1 = f1_score(df_nebula["is_true_DEG"], df_nebula["is_significant"])
+    accuracy = accuracy_score(df_nebula["is_true_DEG"], df_nebula["is_significant"])
+    print(f"Precision: {precision:.3f}")
+    print(f"Recall:    {recall:.3f}")
+    print(f"F1 Score:  {f1:.3f}")
+    print(f"Accuracy:  {accuracy:.3f}")
+
+    # Create color dictionary based on true DEGs
+    categories = {
+        'TP': (df_nebula[df_nebula['is_true_DEG'] & df_nebula['is_significant']][col_gene].tolist(), 'green'),
+        'FN': (df_nebula[df_nebula['is_true_DEG'] & ~df_nebula['is_significant']][col_gene].tolist(), 'orange'),
+        'FP': (df_nebula[~df_nebula['is_true_DEG'] & df_nebula['is_significant']][col_gene].tolist(), 'red'),
+        'TN': (df_nebula[~df_nebula['is_true_DEG'] & ~df_nebula['is_significant']][col_gene].tolist(), 'gray'),
+    }
+
+    # Plot
+    df_nebula = plot_vulcano(
+        df=df_nebula,
+        logfc_col=col_logFC,                          # 'logFC_case_controlcontrol'
+        pval_col=col_p_adj,                          # 'adj_p_case_controlcontrol'
+        gene_col=col_gene,                             # Gene column name
+        pval_thresh=PVAL_THR,                      # 0.05
+        logfc_thresh=LOGFC_THR,                   # 0.5
+        to_label=20,                               # Label top 10 genes
+        categories=categories,
+        max_y=max_FDR
+    )
+
+    display(df_nebula)
+
+    return df_nebula
 
 
 

@@ -342,6 +342,25 @@ wheels = [
 ]
 
 [[package]]
+name = "bioinfokit"
+version = "2.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "adjusttext" },
+    { name = "matplotlib" },
+    { name = "matplotlib-venn" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scikit-learn" },
+    { name = "scipy" },
+    { name = "seaborn" },
+    { name = "statsmodels" },
+    { name = "tabulate" },
+    { name = "textwrap3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8d/d4/28718a2a014ce68a8081023b4f47192bb0c3875e7d48bcb0d968d48b9a6d/bioinfokit-2.1.4.tar.gz", hash = "sha256:8d777ef0f9cc246d690fb28f9748651eb6f055659457b45dec73427790fb6dae", size = 88072, upload-time = "2024-05-24T21:49:02.245Z" }
+
+[[package]]
 name = "blinker"
 version = "1.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2500,6 +2519,17 @@ sdist = { url = "https://files.pythonhosted.org/packages/c5/3d/e76e0e48c96e43b65
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a8/c0/2dfab7b319dabe23f5a7b515a797c74b501d15c72e7a03837cf0cf779b9e/matplotlib_scalebar-0.9.0-py3-none-any.whl", hash = "sha256:5140525cd4e0c60bcade541b86571dabaf446fa69192530bd82d60b54601aa79", size = 16411, upload-time = "2025-01-17T22:10:57.319Z" },
 ]
+
+[[package]]
+name = "matplotlib-venn"
+version = "1.1.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e8/f7/47bddf95492f4d1370ed7164d2b16407805e8eeb38231361de65d387a562/matplotlib-venn-1.1.2.tar.gz", hash = "sha256:6f2b07a03e9bb5a62de2f32f965216739e175176f9d654dd19e7af2c22ec36e3", size = 40821, upload-time = "2025-02-25T10:44:24.294Z" }
 
 [[package]]
 name = "mdurl"
@@ -4722,6 +4752,23 @@ wheels = [
 ]
 
 [[package]]
+name = "sanbomics"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "adjusttext" },
+    { name = "matplotlib" },
+    { name = "numpy" },
+    { name = "pandas" },
+    { name = "scipy" },
+    { name = "seaborn" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/50/fef70c944f9ace5b888776fb166e3e19274c4098e77fddcf7e1feb299cdf/sanbomics-0.1.0.tar.gz", hash = "sha256:1dff6bae582f86da75267a308ffe6612c26b5b610223c0ea33a555f591a234c7", size = 1114690, upload-time = "2023-06-23T16:23:18.413Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d9/fd/7db4c680beaa619abc7d72cc18f58858ac6c49f5b261200824afd207e359/sanbomics-0.1.0-py3-none-any.whl", hash = "sha256:972aca5543934c3ada3c340a77f5e0bf2c38db8a684fabee1bfe13778cdce88a", size = 1137873, upload-time = "2023-06-23T16:23:15.861Z" },
+]
+
+[[package]]
 name = "scanpy"
 version = "1.11.5"
 source = { registry = "https://pypi.org/simple" }
@@ -5352,6 +5399,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tabulate"
+version = "0.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/fe/802052aecb21e3797b8f7902564ab6ea0d60ff8ca23952079064155d1ae1/tabulate-0.9.0.tar.gz", hash = "sha256:0095b12bf5966de529c0feb1fa08671671b3368eec77d7ef7ab114be2c068b3c", size = 81090, upload-time = "2022-10-06T17:21:48.54Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/40/44/4a5f08c96eb108af5cb50b41f76142f0afa346dfa99d5296fe7202a11854/tabulate-0.9.0-py3-none-any.whl", hash = "sha256:024ca478df22e9340661486f85298cff5f6dcdba14f3813e8830015b9ed1948f", size = 35252, upload-time = "2022-10-06T17:21:44.262Z" },
+]
+
+[[package]]
 name = "tensorboard"
 version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
@@ -5424,6 +5480,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/1c/dc/0aff23d6036a4d3bf4f1d8c8204c5c79c4437e25e0ae94ffe4bbb55ee3c2/texttable-1.7.0.tar.gz", hash = "sha256:2d2068fb55115807d3ac77a4ca68fa48803e84ebb0ee2340f858107a36522638", size = 12831, upload-time = "2023-10-03T09:48:12.272Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/24/99/4772b8e00a136f3e01236de33b0efda31ee7077203ba5967fcc76da94d65/texttable-1.7.0-py2.py3-none-any.whl", hash = "sha256:72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917", size = 10768, upload-time = "2023-10-03T09:48:10.434Z" },
+]
+
+[[package]]
+name = "textwrap3"
+version = "0.9.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/02/cef645d4558411b51700e3f56cefd88f05f05ec1b8fa39a3142963f5fcd2/textwrap3-0.9.2.zip", hash = "sha256:5008eeebdb236f6303dcd68f18b856d355f6197511d952ba74bc75e40e0c3414", size = 24951, upload-time = "2019-01-23T21:57:08.223Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/9c/a53e561d496ee5866bbeea4d3a850b3b545ed854f8a21007c1e0d872e94d/textwrap3-0.9.2-py2.py3-none-any.whl", hash = "sha256:bf5f4c40faf2a9ff00a9e0791fed5da7415481054cef45bb4a3cfb1f69044ae0", size = 12235, upload-time = "2019-01-23T21:57:11.241Z" },
 ]
 
 [[package]]
@@ -5892,6 +5957,7 @@ dependencies = [
     { name = "abc-atlas-access", extra = ["notebooks"] },
     { name = "adjusttext" },
     { name = "anndata2ri" },
+    { name = "bioinfokit" },
     { name = "cell-type-mapper" },
     { name = "cupy-cuda12x" },
     { name = "decoupler" },
@@ -5910,6 +5976,7 @@ dependencies = [
     { name = "pycpd" },
     { name = "pydeseq2" },
     { name = "rpy2" },
+    { name = "sanbomics" },
     { name = "scanpy" },
     { name = "scikit-misc" },
     { name = "scrublet" },
@@ -5929,6 +5996,7 @@ requires-dist = [
     { name = "abc-atlas-access", extras = ["notebooks"], git = "https://github.com/alleninstitute/abc_atlas_access.git" },
     { name = "adjusttext", specifier = ">=1.3.0" },
     { name = "anndata2ri", specifier = ">=2.0" },
+    { name = "bioinfokit", specifier = ">=2.1.4" },
     { name = "cell-type-mapper", git = "https://github.com/alleninstitute/cell_type_mapper.git?rev=rc%2Fv1.5.2" },
     { name = "cupy-cuda12x", specifier = ">=13.6.0" },
     { name = "decoupler", specifier = ">=2.1.3" },
@@ -5946,6 +6014,7 @@ requires-dist = [
     { name = "pycpd", specifier = ">=2.0.0" },
     { name = "pydeseq2", specifier = ">=0.5.3" },
     { name = "rpy2", specifier = ">=3.6.4" },
+    { name = "sanbomics", specifier = ">=0.1.0" },
     { name = "scanpy", specifier = ">=1.11.5" },
     { name = "scikit-misc", specifier = ">=0.5.2" },
     { name = "scrublet", specifier = ">=0.2.3" },

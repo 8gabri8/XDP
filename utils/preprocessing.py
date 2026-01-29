@@ -16,6 +16,74 @@ r = ro.r
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
+def save_files_for_R_conversion(adata, PATH_BASE):
+    from scipy.io import mmwrite
+    import pandas as pd
+    import os
+    
+    os.makedirs(PATH_BASE, exist_ok=True)
+    
+    # Save sparse matrix (genes × cells)
+    matrix_path = f"{PATH_BASE}/counts_matrix.mtx"
+    mmwrite(matrix_path, adata.X.T)
+    
+    # Save gene names
+    genes_path = f"{PATH_BASE}/genes.txt"
+    with open(genes_path, 'w') as f:
+        for gene in adata.var_names:
+            f.write(f"{gene}\n")
+    
+    # Save cell/sample names
+    barcodes_path = f"{PATH_BASE}/barcodes.txt"
+    with open(barcodes_path, 'w') as f:
+        for barcode in adata.obs_names:
+            f.write(f"{barcode}\n")
+    
+    # Save metadata
+    metadata_path = f"{PATH_BASE}/metadata.csv"
+    adata.obs.to_csv(metadata_path)
+
+def build_qs_from_python_files(PATH_BASE, saving_path, contrast_var=None, reference_level=None):
+
+    # Set reference level if provided
+    contrast_setup = ""
+    if contrast_var and reference_level:
+        contrast_setup = f'''
+    # Set reference level for contrast variable
+    cat("\\nSetting {contrast_var} reference level to: {reference_level}\\n")
+    metadata${contrast_var} <- relevel(factor(metadata${contrast_var}), ref = "{reference_level}")
+    cat("Levels:", levels(metadata${contrast_var}), "\\n")
+    '''
+    
+    r(f'''
+    library(Matrix)
+    library(Seurat)
+    library(qs)
+    
+    # Read sparse matrix
+    mtx <- readMM("{PATH_BASE}/counts_matrix.mtx")
+    
+    # Read gene and sample names
+    genes <- readLines("{PATH_BASE}/genes.txt")
+    barcodes <- readLines("{PATH_BASE}/barcodes.txt")
+    
+    # Assign names
+    rownames(mtx) <- genes
+    colnames(mtx) <- barcodes
+    
+    # Read metadata
+    metadata <- read.csv("{PATH_BASE}/metadata.csv", row.names=1)
+
+    # Set contrast
+    {contrast_setup}
+    
+    # Create Seurat object
+    sobj <- CreateSeuratObject(counts = mtx, meta.data = metadata)
+    
+    # Save as .qs
+    qsave(sobj, "{saving_path}")
+    ''')
+    
 
 def plot_qc_metrics(adata, pct_intronic_col="pct_intronic", Class_bootstrapping_probability_col="Class_bootstrapping_probability"):
 
@@ -116,7 +184,6 @@ def plot_qc_metrics(adata, pct_intronic_col="pct_intronic", Class_bootstrapping_
 
     #plt.tight_layout()
     plt.show()
-
 
 def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False, verbose=False):
 
