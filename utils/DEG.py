@@ -86,29 +86,40 @@ def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARI
                MIN_COUNTS=10,LARGE_N=10, MIN_TOTAL_COUNTS=15, MIN_PROP_BY_EXPR=0.5,MIN_PROP_BY_PROP=0.1,MIN_SMPLS=2, 
                ):
     
+    # Handle None/empty COV_FOR_PSEUDOBULK
+    if COV_FOR_PSEUDOBULK is None or len(COV_FOR_PSEUDOBULK) == 0:
+        groups_col_arg = None
+        groupby_cols = [SAMPLE_VARIABLE]
+    else:
+        groups_col_arg = COV_FOR_PSEUDOBULK
+        groupby_cols = [SAMPLE_VARIABLE, *COV_FOR_PSEUDOBULK]
+
+    
     # Pusdobulk 
     # comnination (donor_id x Group_name x zone)
     print("\nPsudobulking")
     adata_pb_all = dc.pp.pseudobulk(
         adata=adata,
         sample_col=SAMPLE_VARIABLE, # Creates ONE pseudobulk per unique value in this column
-        groups_col=[*COV_FOR_PSEUDOBULK], # Would create separate pseudobulks for each combination (together with sample_col)
+        groups_col=groups_col_arg, # Would create separate pseudobulks for each combination (together with sample_col)
         layer=layer, # use .X with raw counts
         skip_checks=True,
         mode="sum",
     )
 
     # Col with all rpeusdbulk name concatemated
-    adata_pb_all.obs["pseudobulk_group"] = (
-        adata_pb_all.obs[[SAMPLE_VARIABLE] + COV_FOR_PSEUDOBULK]
-        .astype(str)          # make sure all values are strings
-        .agg("-".join, axis=1)  # join cell-wise
-    )
-    adata_pb_all.obs[GROUP_DEG_COL] = (
-        adata_pb_all.obs[COV_FOR_PSEUDOBULK]
-        .astype(str)          # make sure all values are strings
-        .agg("-".join, axis=1)  # join cell-wise
-    )
+    if COV_FOR_PSEUDOBULK is None or len(COV_FOR_PSEUDOBULK) == 0:
+        adata_pb_all.obs["pseudobulk_group"] = adata_pb_all.obs[SAMPLE_VARIABLE].astype(str)
+        adata_pb_all.obs[GROUP_DEG_COL] = "all"
+    else:
+        adata_pb_all.obs["pseudobulk_group"] = (
+            adata_pb_all.obs[[SAMPLE_VARIABLE] + COV_FOR_PSEUDOBULK]
+            .astype(str).agg("-".join, axis=1)
+        )
+        adata_pb_all.obs[GROUP_DEG_COL] = (
+            adata_pb_all.obs[COV_FOR_PSEUDOBULK]
+            .astype(str).agg("-".join, axis=1)
+        )
 
     # Check row counts in .X
     print(adata_pb_all.X)
@@ -119,16 +130,15 @@ def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARI
     print("\nAdding metadata")
     agg_dict = {}
 
-    for cov in [*COVARIATES_FOR_DEG, *INTERESTING_COV]:
+    for cov in [*(COVARIATES_FOR_DEG or []), *(INTERESTING_COV or [])]:
         if pd.api.types.is_numeric_dtype(adata.obs[cov]):
             agg_dict[cov] = "mean"
         else:
             agg_dict[cov] = "first"
     print(agg_dict)
 
-    celltype_zone_metadata = adata.obs.groupby([SAMPLE_VARIABLE, *COV_FOR_PSEUDOBULK]).agg(
-        agg_dict
-    )
+    celltype_zone_metadata = adata.obs.groupby(groupby_cols).agg(agg_dict)
+
 
     # Reset index to turn groupby keys into columns 
     celltype_zone_metadata = celltype_zone_metadata.reset_index()
@@ -140,7 +150,7 @@ def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARI
         .drop(columns=list(agg_dict.keys()), errors='ignore')  # Drop only the aggregated covariates
         .merge(
             celltype_zone_metadata,
-            on=[SAMPLE_VARIABLE, *COV_FOR_PSEUDOBULK],  # Join on pseudobulk keys
+            on=groupby_cols,  # Join on pseudobulk keys
             how='left'
         )
     )
@@ -219,8 +229,10 @@ def DEG_deseq2_edgeR(
     GENE_COL_NAME="gene",     # column name for gene in DEG results
     LOGFC_COL_NAME="log_fc",  # column name for log fold change
     ADJ_P_VAL_COL_NAME="adj_p_value", # column name for adjusted p-value
+    P_VAL_COL_NAME="p_value", # column name for adjusted p-value
     calculate_umap=False, 
-    split= " + "
+    split= " + ",
+    save_merged=False
 ):
     
     # Prepare for capturing figures
@@ -241,8 +253,10 @@ def DEG_deseq2_edgeR(
 
     # Subset to current cimbination
         # ATTENTION: index must contain group name
-    adata_pb_tmp = adata_pb_all[adata_pb_all.obs[psuedobulk_group_for_deg_col] == psuedobulk_group_for_deg].copy()
-
+    if psuedobulk_group_for_deg is not None:
+        adata_pb_tmp = adata_pb_all[adata_pb_all.obs[psuedobulk_group_for_deg_col] == psuedobulk_group_for_deg].copy()
+    else:
+        adata_pb_tmp = adata_pb_all
 
     #############################
 
@@ -442,7 +456,7 @@ def DEG_deseq2_edgeR(
             adjust_method='BH', 
             alpha=ALPHA_MULTIPLE_TEST
         )
-        .rename(columns={"variable": GENE_COL_NAME, "log_fc":LOGFC_COL_NAME, "adj_p_value":ADJ_P_VAL_COL_NAME})
+        .rename(columns={"variable": GENE_COL_NAME, "log_fc":LOGFC_COL_NAME, "adj_p_value":ADJ_P_VAL_COL_NAME, "p_value":P_VAL_COL_NAME})
         .sort_values(LOGFC_COL_NAME)
     )
 
@@ -491,7 +505,7 @@ def DEG_deseq2_edgeR(
             contrast,
             alpha=ALPHA_MULTIPLE_TEST
         )
-        .rename(columns={"variable": GENE_COL_NAME, "log_fc":LOGFC_COL_NAME, "adj_p_value":ADJ_P_VAL_COL_NAME})
+        .rename(columns={"variable": GENE_COL_NAME, "log_fc":LOGFC_COL_NAME, "adj_p_value":ADJ_P_VAL_COL_NAME, "p_value":P_VAL_COL_NAME})
         .sort_values(LOGFC_COL_NAME)
     )
 
@@ -522,9 +536,10 @@ def DEG_deseq2_edgeR(
 
     # Merge df and save
 
-    output_file = f'{save_folder}/deg_df.csv'
     df_merged = pd.concat([res_df_edgeR, res_df_pds2])
-    df_merged.to_csv(output_file)
+    if save_merged:
+        output_file = f'{save_folder}/deg_df.csv'
+        df_merged.to_csv(output_file)
 
     #############################
 
@@ -543,7 +558,7 @@ def DEG_deseq2_edgeR(
     # Report oringla show
     plt.show = original_show
 
-    return df_merged
+    return df_merged, res_df_edgeR, res_df_pds2
 
 def run_nebula_parallel_script(
     path_qs: str,

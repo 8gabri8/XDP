@@ -10,6 +10,7 @@ from scipy.stats import norm
 from diptest import diptest
 from tqdm.notebook import tqdm
 from scipy.sparse import csr_matrix
+import gc
 
 import rpy2.robjects as ro
 r = ro.r
@@ -78,12 +79,23 @@ def build_qs_from_python_files(PATH_BASE, saving_path, contrast_var=None, refere
     {contrast_setup}
     
     # Create Seurat object
-    sobj <- CreateSeuratObject(counts = mtx, meta.data = metadata)
+    print("Creating Seurat object...")
+    sobj <- CreateSeuratObject(
+        counts = mtx, 
+        meta.data = metadata,
+        min.cells = 0,        # Don't filter genes
+        min.features = 0,     # Don't filter cells
+    )
     
     # Save as .qs
+    print("Saving Seurat object as .qs...")
     qsave(sobj, "{saving_path}")
+
+     # CLEAN UP R MEMORY
+    rm(sobj)           # Remove the object
+    gc()               # Trigger R garbage collection
     ''')
-    
+    gc.collect()
 
 def plot_qc_metrics(adata, pct_intronic_col="pct_intronic", Class_bootstrapping_probability_col="Class_bootstrapping_probability"):
 
@@ -615,7 +627,7 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
 
 
 
-def calculate_and_plot_markers(adata, makers_dict, ncol=3):
+def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm"):
     
     print("Assure that adata.var.index has same gene name of makers...")
     for cell_type, genes in tqdm(makers_dict.items()):
@@ -624,7 +636,7 @@ def calculate_and_plot_markers(adata, makers_dict, ncol=3):
         
         if len(genes) > 0:
             #print(f"  {cell_type}: {len(genes)} markers")
-            sc.tl.score_genes(adata, genes, score_name=f'{cell_type}_score', use_raw=False, layer="log1p_norm") # normalised scores (not scaled)
+            sc.tl.score_genes(adata, genes, score_name=f'{cell_type}_score', use_raw=False, layer=layer) # normalised scores (not scaled)
         else:
             print(f"  ⚠ {cell_type}: No markers found!")
 
