@@ -97,6 +97,196 @@ def build_qs_from_python_files(PATH_BASE, saving_path, contrast_var=None, refere
     ''')
     gc.collect()
 
+def add_metadata_to_qs(base_file_path, new_metadata_df_path, file_type=None, 
+                                    col_name_contain=None, barcode_col="barcode"):
+    """
+    Updates metadata with CONTINUOUS variables (PCs, latent embeddings, etc.) in existing .qs or .h5ad file
+    
+    **Assumes all columns except barcode are numeric/continuous variables**
+    
+    Args:
+        base_file_path: Path to .qs or .h5ad file
+        new_metadata_df_path: Path to CSV with continuous metadata (PCs, latent variables, etc.)
+        file_type: 'qs' or 'h5ad'. If None, auto-detect from extension
+        col_name_contain: If provided, removes ALL columns containing this string
+                         If None, removes only overlapping columns
+        barcode_col: Column name in CSV to use for merging
+    """
+    import os
+    
+    # Auto-detect file type
+    if file_type is None:
+        ext = os.path.splitext(base_file_path)[1].lower()
+        if ext == '.qs':
+            file_type = 'qs'
+        elif ext == '.h5ad':
+            file_type = 'h5ad'
+        else:
+            raise ValueError(f"Cannot auto-detect file type from extension: {ext}")
+    
+    print(f"Processing {file_type} file: {base_file_path}")
+    
+    # ============================================
+    # QS FILE (R/Seurat)
+    # ============================================
+    if file_type == 'qs':
+        if col_name_contain is not None:
+            ro.r(f'''
+                library(qs)
+                
+                print("Reading obj...")
+                sc_obj <- qread("{base_file_path}")
+                
+                # Find all columns containing the pattern
+                cols_to_remove <- grep("{col_name_contain}", colnames(sc_obj@meta.data), value=TRUE)
+                
+                if (length(cols_to_remove) > 0) {{
+                    print(paste("Removing columns containing '{col_name_contain}':", paste(cols_to_remove, collapse=", ")))
+                    sc_obj@meta.data <- sc_obj@meta.data[, !colnames(sc_obj@meta.data) %in% cols_to_remove, drop=FALSE]
+                }}
+                
+                # Read new metadata
+                new_meta <- read.csv("{new_metadata_df_path}", stringsAsFactors = FALSE)
+                
+                # Convert all columns except barcode to numeric
+                print("Converting all columns (except barcode) to numeric...")
+                for (col in colnames(new_meta)) {{
+                    if (col != "{barcode_col}") {{
+                        new_meta[[col]] <- as.numeric(new_meta[[col]])
+                        if (any(is.na(new_meta[[col]]))) {{
+                            warning(paste("Column", col, "contains NAs after numeric conversion"))
+                        }}
+                    }}
+                }}
+                
+                # Merge
+                sc_obj@meta.data <- merge(
+                    sc_obj@meta.data,
+                    new_meta,
+                    by.x = "row.names",
+                    by.y = "{barcode_col}",
+                    all.x = TRUE
+                )
+                rownames(sc_obj@meta.data) <- sc_obj@meta.data$Row.names
+                sc_obj@meta.data$Row.names <- NULL
+                
+                print("Saving...")
+                qsave(sc_obj, "{base_file_path}", nthreads = 4)
+            ''')
+        else:
+            ro.r(f'''
+                library(qs)
+                
+                print("Reading obj...")
+                sc_obj <- qread("{base_file_path}")
+                
+                new_meta <- read.csv("{new_metadata_df_path}", stringsAsFactors = FALSE)
+                
+                # Convert all columns except barcode to numeric
+                print("Converting all columns (except barcode) to numeric...")
+                for (col in colnames(new_meta)) {{
+                    if (col != "{barcode_col}") {{
+                        new_meta[[col]] <- as.numeric(new_meta[[col]])
+                        if (any(is.na(new_meta[[col]]))) {{
+                            warning(paste("Column", col, "contains NAs after numeric conversion"))
+                        }}
+                    }}
+                }}
+                
+                # Find overlapping columns (excluding barcode)
+                overlapping_cols <- intersect(colnames(sc_obj@meta.data), colnames(new_meta))
+                overlapping_cols <- overlapping_cols[overlapping_cols != "{barcode_col}"]
+                
+                if (length(overlapping_cols) > 0) {{
+                    print(paste("Removing overlapping columns:", paste(overlapping_cols, collapse=", ")))
+                    sc_obj@meta.data <- sc_obj@meta.data[, !colnames(sc_obj@meta.data) %in% overlapping_cols, drop=FALSE]
+                }}
+                
+                sc_obj@meta.data <- merge(
+                    sc_obj@meta.data,
+                    new_meta,
+                    by.x = "row.names",
+                    by.y = "{barcode_col}",
+                    all.x = TRUE
+                )
+                rownames(sc_obj@meta.data) <- sc_obj@meta.data$Row.names
+                sc_obj@meta.data$Row.names <- NULL
+                
+                print("Saving...")
+                qsave(sc_obj, "{base_file_path}", nthreads = 4)
+            ''')
+    
+    # ============================================
+    # H5AD FILE (Python/Scanpy)
+    # ============================================
+    elif file_type == 'h5ad':
+        import scanpy as sc
+        import pandas as pd
+        import numpy as np
+        
+        print("Reading h5ad...")
+        adata = sc.read_h5ad(base_file_path)
+        
+        print("Reading new metadata...")
+        new_meta = pd.read_csv(new_metadata_df_path)
+        
+        # Convert all columns except barcode to numeric
+        print("Converting all columns (except barcode) to numeric...")
+        for col in new_meta.columns:
+            if col != barcode_col:
+                new_meta[col] = pd.to_numeric(new_meta[col], errors='coerce')
+                if new_meta[col].isna().any():
+                    print(f"  Warning: Column '{col}' contains NAs after numeric conversion")
+        
+        # Determine columns to remove
+        if col_name_contain is not None:
+            # Remove columns containing pattern
+            cols_to_remove = [col for col in adata.obs.columns if col_name_contain in col]
+            if cols_to_remove:
+                print(f"Removing columns containing '{col_name_contain}': {cols_to_remove}")
+                adata.obs = adata.obs.drop(columns=cols_to_remove)
+        else:
+            # Remove overlapping columns (excluding barcode)
+            overlapping_cols = list(set(adata.obs.columns) & set(new_meta.columns))
+            overlapping_cols = [col for col in overlapping_cols if col != barcode_col]
+            if overlapping_cols:
+                print(f"Removing overlapping columns: {overlapping_cols}")
+                adata.obs = adata.obs.drop(columns=overlapping_cols)
+        
+        # Merge new metadata
+        print("Merging metadata...")
+        # Reset index to make barcodes a column
+        obs_df = adata.obs.reset_index()
+        
+        # Merge (left join to keep all cells)
+        merged = obs_df.merge(new_meta, left_on='index', right_on=barcode_col, how='left')
+        
+        # Remove duplicate barcode column if created
+        if barcode_col in merged.columns and barcode_col != 'index':
+            merged = merged.drop(columns=[barcode_col])
+        
+        # Set index back
+        merged = merged.set_index('index')
+        merged.index.name = None
+        
+        # Verify dtypes
+        print("\nData types after merge:")
+        for col in new_meta.columns:
+            if col != barcode_col and col in merged.columns:
+                print(f"  {col}: {merged[col].dtype}")
+        
+        # Update adata.obs
+        adata.obs = merged
+        
+        print("\nSaving h5ad...")
+        adata.write_h5ad(base_file_path)
+    
+    else:
+        raise ValueError(f"file_type must be 'qs' or 'h5ad', got: {file_type}")
+    
+    print("✓ Done!")
+
+
 def plot_qc_metrics(adata, pct_intronic_col="pct_intronic", Class_bootstrapping_probability_col="Class_bootstrapping_probability"):
 
     fig, axes = plt.subplots(2,3, figsize=(15, 10))
@@ -197,7 +387,7 @@ def plot_qc_metrics(adata, pct_intronic_col="pct_intronic", Class_bootstrapping_
     #plt.tight_layout()
     plt.show()
 
-def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False, verbose=False):
+def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer="counts", save_raw_counts=False, save_scaled=False, verbose=False):
 
     print("Expect .X is raw counts!")
 
@@ -222,6 +412,9 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
         # ATTENTION: now X stores nroalised counts --> not used for all stat test alter
     print("Scaling...")
     sc.pp.scale(adata, max_value=10) #z-score normalization
+
+    if save_scaled:
+        adata.layers["scaled"] = adata.X.copy()
 
     # PCA
     print("Calculating PCA...")
@@ -627,7 +820,13 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
 
 
 
-def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm"):
+def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds"):
+
+    if gene_col is not None:
+        adata.var.index = adata.var[gene_col]
+        adata.var.index = adata.var[gene_col].astype(str)
+        adata.var.index.name = '_index'
+        adata.var_names_make_unique()
     
     print("Assure that adata.var.index has same gene name of makers...")
     for cell_type, genes in tqdm(makers_dict.items()):
@@ -642,8 +841,8 @@ def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm"):
 
     # plot umaps
     score_cols = [f'{ct}_score' for ct in makers_dict.keys() if f'{ct}_score' in adata.obs]
-    sc.pl.umap(adata, color=score_cols, cmap='Reds', ncols=ncol)
-    sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap="Reds")
+    sc.pl.umap(adata, color=score_cols, cmap=color_map, ncols=ncol)
+    sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap=color_map)
 
 def wilcoxon_between_two_clusters(
     adata, 

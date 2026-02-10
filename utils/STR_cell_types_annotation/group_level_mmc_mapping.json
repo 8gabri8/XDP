@@ -423,24 +423,6 @@
     "Tafa1 STR D1 Matrix MSN": "Tafa1"
   },
 
-  "category_MSN_receptor_type": {
-    "_description": "MSN classification by dopamine receptor expression (D1 vs D2 vs hybrid)",
-    "_biology": "D1-MSNs form the direct pathway (striatonigral, movement facilitation). D2-MSNs form the indirect pathway (striatopallidal, movement inhibition). D1D2 hybrids co-express both receptors and project exclusively to GPe, modulating both pathways.",
-    
-    "STRd D1 Matrix MSN": "D1",
-    "STRd D1 Striosome MSN": "D1",
-    "STRv D1 MSN": "D1",
-    "STRv D1 NUDAP MSN": "D1",
-    "Tafa1 STR D1 Matrix MSN": "D1",
-
-    "STRd D2 Matrix MSN": "D2",
-    "STRd D2 Striosome MSN": "D2",
-    "STRd D2 StrioMat Hybrid MSN": "D2",
-    "STRv D2 MSN": "D2",
-    
-    "STR D1D2 Hybrid MSN": "D1D2"
-  },
-
   "category_MSN_compartment": {
     "_description": "MSN classification by striosome/matrix compartment (dorsal only)",
     "_biology": "Striosomes (patches) are OPRM1+ islands receiving limbic cortical input, project to SNc dopamine neurons. Matrix surrounds striosomes, receives sensorimotor cortical input, projects to SNr/GPe. Ventral striatum lacks clear compartmental organization. StrioMat Hybrid cells have intermediate properties.",
@@ -560,6 +542,63 @@
   },
 
   "category_MSN_group_names": {
+    "_description": "MSN with names as they are",
+    "_note": "All entries map to 'MSN'",
+
+    "STRd D1 Matrix MSN": "STRd D1 Matrix MSN",
+    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN",
+    "STRv D1 MSN": "STRv D1 MSN",
+
+    "STRd D2 Matrix MSN": "STRd D2 Matrix MSN",
+    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN",
+    "STRv D2 MSN": "STRv D2 MSN",
+    "STRd D2 StrioMat Hybrid MSN": "STRd D2 StrioMat Hybrid MSN",
+
+    "STR D1D2 Hybrid MSN": "STR D1D2 Hybrid MSN",
+    "STRv D1 NUDAP MSN": "STRv D1 NUDAP MSN",
+
+    "Tafa1 D1 Matrix MSN": "Tafa1 D1 Matrix MSN",
+    "Tafa1 D2 Matrix MSN": "Tafa1 D2 Matrix MSN",
+    "Tafa1 STRd D2 StrioMat Hybrid MSN": "Tafa1 STRd D2 StrioMat Hybrid MSN"
+
+  },
+
+  "spn_type": {
+    "_description": "From Group_name to Bennet's celltype",
+    "_note": "",
+
+    "STRd D1 Matrix MSN": "dorsal_matrix",
+    "STRd D2 Matrix MSN": "dorsal_matrix",
+
+    "STRv D1 MSN": "ventral_matrix",
+    "STRv D2 MSN": "ventral_matrix",
+
+    "STRd D2 Striosome MSN": "patch",
+    "STRd D1 Striosome MSN": "patch",
+
+    "STRd D2 StrioMat Hybrid MSN": "espn",
+    "STR D1D2 Hybrid MSN": "espn",
+    "STRv D1 NUDAP MSN": "espn"
+  },
+
+  "spn_receptor_type": {
+    "_description": "MSN classification by dopamine receptor expression (D1 vs D2 vs hybrid)",
+    "_biology": "D1-MSNs form the direct pathway (striatonigral, movement facilitation). D2-MSNs form the indirect pathway (striatopallidal, movement inhibition). D1D2 hybrids co-express both receptors and project exclusively to GPe, modulating both pathways.",
+    
+    "STRd D1 Matrix MSN": "D1",
+    "STRd D1 Striosome MSN": "D1",
+    "STRv D1 MSN": "D1",
+    "STRv D1 NUDAP MSN": "D1",
+
+    "STRd D2 Matrix MSN": "D2",
+    "STRd D2 Striosome MSN": "D2",
+    "STRd D2 StrioMat Hybrid MSN": "D2",
+    "STRv D2 MSN": "D2",
+    
+    "STR D1D2 Hybrid MSN": "D1D2"
+  },
+
+  "Original_group_name": {
     "_description": "MSN with names as they are",
     "_note": "All entries map to 'MSN'",
 

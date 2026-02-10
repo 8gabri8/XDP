@@ -20,6 +20,7 @@ import rpy2.robjects as ro
 r = ro.r
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
+import patsy
 
 import decoupler as dc
 import pertpy as pt
@@ -48,24 +49,25 @@ def convert_df_to_fig(df, title):
     
     return fig  # Returns matplotlib figure
 
-def check_corr_cov_in_design(adata, DEG_FORMULA, corr_thr=0.7, split=" + "):
-    
-    # Get all variables from formula
-    vars_in_formula = DEG_FORMULA[2:].split(split)
+def check_corr_cov_in_design(adata, vars_in_formula, corr_thr=0.7, split=" + "):
+
+    def quote_var(v):
+        return f'Q("{v}")' if "." in v else v
+
+    vars_in_formula = [quote_var(v) for v in vars_in_formula]
+    DEG_FORMULA = "~ " + " + ".join(vars_in_formula)
+
     print(DEG_FORMULA)
-    print(vars_in_formula)
 
-    # Extract data
-    df = adata.obs[vars_in_formula].copy()
-
-    # Encode categorical as numbers
-    for col in df.columns:
-        if df[col].dtype == 'object' or df[col].dtype.name == 'category':
-            df[col] = pd.Categorical(df[col]).codes
+    # Desing matrix --> one hto encoding like R
+    df = patsy.dmatrix(
+        DEG_FORMULA,
+        adata.obs,
+        return_type="dataframe"
+    ) 
 
     # Calculate correlation
     corr = df.corr()
-
     # Plot
     plt.figure(figsize=(10, 8))
     sns.heatmap(corr, annot=True, fmt='.2f', cmap='RdBu_r', 
@@ -74,12 +76,20 @@ def check_corr_cov_in_design(adata, DEG_FORMULA, corr_thr=0.7, split=" + "):
     plt.tight_layout()
     plt.show()
 
-    # Find high correlations
-    print(f"\n High correlations (|r| > {corr_thr}):")
-    for i in range(len(corr)):
-        for j in range(i+1, len(corr)):
-            if abs(corr.iloc[i, j]) > corr_thr:
-                print(f"{corr.index[i]} <-> {corr.columns[j]}: r = {corr.iloc[i, j]:.3f}")
+    # VIF = How well can this covariate be predicted by the rest of the design?
+    # 5–10 Serious
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+    vif = pd.DataFrame({
+        "variable": df.columns,
+        "VIF": [variance_inflation_factor(df.values, i)
+                for i in range(df.shape[1])]
+    })
+    vif[vif.variable != "Intercept"]
+    print(vif.sort_values("VIF", ascending=False))
+
+    # binary identifiability test.
+    # True → Perfect collinearity
+    print("\nbinary identifiability test.", np.linalg.matrix_rank(df) < df.shape[1])
 
 def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARIATES_FOR_DEG, layer="counts", INTERESTING_COV=[], CONTRAST_VARIABLE=None, 
                MIN_CELLS_PER_PSUDOCELL=10,MIN_COUNTS_PER_PSEUDOCELL=1000, filter_genes=False,
@@ -271,8 +281,8 @@ def DEG_deseq2_edgeR(
      #############################
 
     # Check covaritne correlation
-    check_corr_cov_in_design(adata_pb_all, design_formula, corr_thr=0.7, split=split)
-    figures.append(plt.gcf())
+    # check_corr_cov_in_design(adata_pb_all, design_formula, corr_thr=0.7, split=split)
+    # figures.append(plt.gcf())
 
     #############################
 
@@ -600,33 +610,115 @@ def run_nebula_parallel_script(
         cmd.extend(["--suffix", suffix])
     
     print(f"Running command: {' '.join(cmd)}")
+    print("=" * 80)
     
-    # Run the script
+    # Run with real-time output streaming
+    import subprocess
+    import sys
+    
+    final_path = None
+    
     try:
-        result = subprocess.run(
+        # Use Popen to stream output line-by-line
+        process = subprocess.Popen(
             cmd,
-            check=True,
-            capture_output=True,
-            text=True
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout
+            text=True,
+            bufsize=1  # Line buffered
         )
         
-        print("STDOUT:")
-        print(result.stdout)
-        
-        # Parse output to get final results path
-        for line in result.stdout.split('\n'):
+        # Read and print output in real-time
+        for line in process.stdout:
+            print(line, end='', flush=True)  # Print immediately
+            
+            # Parse for final results path
             if 'Final combined results:' in line:
                 final_path = line.split('Final combined results:')[1].strip()
-                return final_path
         
-        return None
+        # Wait for process to complete
+        return_code = process.wait()
+        
+        if return_code != 0:
+            raise subprocess.CalledProcessError(return_code, cmd)
+        
+        print("=" * 80)
+        return final_path
     
     except subprocess.CalledProcessError as e:
-        print("❌ ERROR running NEBULA script!")
-        print(f"\nCommand: {' '.join(cmd)}")
-        print(f"\nSTDOUT:\n{e.stdout}")  # ADD THIS!
-        print(f"\nSTDERR:\n{e.stderr}")  # ADD THIS!
+        print("\n❌ ERROR running NEBULA script!")
+        print(f"Command: {' '.join(cmd)}")
+        print(f"Return code: {e.returncode}")
         raise
+
+
+# def run_nebula_parallel_script(
+#     path_qs: str,
+#     path_nebula_script: str,
+#     id_col: str = "donor_id",
+#     covs: list = None,
+#     offset_col: str = "nCount_RNA",
+#     n_folds: int = 8,
+#     n_cores: int = 16,
+#     save_tmp: bool = False,
+#     suffix: str = None,
+# ):
+#     """
+#     Run NEBULA analysis in parallel using the bash orchestration script.
+    
+#     Returns:
+#     --------
+#     str : Path to the combined results file
+#     """
+    
+#     # Build command
+#     cmd = [
+#         "bash",
+#         path_nebula_script,
+#         "--path", path_qs,
+#         "--id-col", id_col,
+#         "--offset-col", offset_col,
+#         "--n-folds", str(n_folds),
+#         "--n-cores", str(n_cores),
+#         "--save-tmp", "1" if save_tmp else "0"
+#     ]
+    
+#     # Add covariates if provided
+#     if covs:
+#         cmd.extend(["--covs", ",".join(covs)])
+    
+#     # Add suffix if provided
+#     if suffix:
+#         cmd.extend(["--suffix", suffix])
+    
+#     print(f"Running command: {' '.join(cmd)}")
+    
+#     # Run the script
+#     try:
+#         result = subprocess.run(
+#             cmd,
+#             check=True,
+#             capture_output=True,
+#             text=True
+#         )
+        
+#         print("STDOUT:")
+#         print(result.stdout)
+        
+#         # Parse output to get final results path
+#         for line in result.stdout.split('\n'):
+#             if 'Final combined results:' in line:
+#                 final_path = line.split('Final combined results:')[1].strip()
+#                 return final_path
+        
+#         return None
+    
+#     except subprocess.CalledProcessError as e:
+#         print("❌ ERROR running NEBULA script!")
+#         print(f"\nCommand: {' '.join(cmd)}")
+#         print(f"\nSTDOUT:\n{e.stdout}")  # ADD THIS!
+#         print(f"\nSTDERR:\n{e.stderr}")  # ADD THIS!
+#         raise
 
 def plot_vulcano(df, logfc_col, pval_col, gene_col, 
                   categories=None, 

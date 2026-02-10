@@ -160,10 +160,15 @@ seuratdata = list(
 print(paste("Extracted", nrow(seuratdata$count), "genes and", ncol(seuratdata$count), "cells"))
 
 
-
 df = model.matrix(
   as.formula(g("~{paste(COVS, collapse='+')}")), 
   data=seuratdata$pred)
+
+# Comment
+print(paste("Formula:", g("~{paste(COVS, collapse='+')}")))
+print("Covariate types:"); print(sapply(seuratdata$pred, class))
+print("Design matrix columns:"); print(colnames(df))
+#
 
 data_g = group_cell(
   count=seuratdata$count,

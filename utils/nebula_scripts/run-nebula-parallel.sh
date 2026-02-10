@@ -153,11 +153,11 @@ echo "[INFO] Launching chunk jobs with GNU parallel..."
 if [[ -n "${COVS}" ]]; then
   find "$chunks_dir" -maxdepth 1 -type f -name "chunk_*.qs" -print0 \
     | xargs -0 -I @ echo Rscript "$SCRIPT_DIR/run-nebula.R" --path @ --covs "$COVS" --id-col "$ID_COL" --offset-col nUMI_nebula --n-cores 1 --out-dir "$tmp_de_dir" "$suffix_str" \
-    | parallel -j "${N_CORES}"
+    | parallel --line-buffer -j "${N_CORES}"
 else
   find "$chunks_dir" -maxdepth 1 -type f -name "chunk_*.qs" -print0 \
     | xargs -0 -I @ echo Rscript "$SCRIPT_DIR/run-nebula.R" --path @ --id-col "$ID_COL" --offset-col nUMI_nebula --n-cores 1 --out-dir "$tmp_de_dir" "$suffix_str" \
-    | parallel -j "${N_CORES}"
+    | parallel --line-buffer -j "${N_CORES}"
 fi
 
 echo "[INFO] All chunk jobs completed."
