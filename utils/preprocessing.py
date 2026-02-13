@@ -102,7 +102,7 @@ def add_metadata_to_qs(base_file_path, new_metadata_df_path, file_type=None,
     """
     Updates metadata with CONTINUOUS variables (PCs, latent embeddings, etc.) in existing .qs or .h5ad file
     
-    **Assumes all columns except barcode are numeric/continuous variables**
+    **Assumes all columns of NWE DF except barcode are numeric/continuous variables**
     
     Args:
         base_file_path: Path to .qs or .h5ad file
@@ -256,19 +256,27 @@ def add_metadata_to_qs(base_file_path, new_metadata_df_path, file_type=None,
         # Merge new metadata
         print("Merging metadata...")
         # Reset index to make barcodes a column
-        obs_df = adata.obs.reset_index()
+        obs_df = adata.obs.copy() #.reset_index()
+        obs_df['_obs_key'] = adata.obs_names 
         
         # Merge (left join to keep all cells)
-        merged = obs_df.merge(new_meta, left_on='index', right_on=barcode_col, how='left')
-        
-        # Remove duplicate barcode column if created
-        if barcode_col in merged.columns and barcode_col != 'index':
+        merged = obs_df.merge(new_meta, left_on='_obs_key', right_on=barcode_col, how='left')
+
+        # Guard: verify no row expansion happened
+        assert len(merged) == len(adata.obs_names), (
+            f"Merge expanded rows: {len(adata.obs_names)} → {len(merged)}. "
+            f"Duplicate barcodes in new_metadata?"
+        )
+
+        # Clean up merge keys
+        merged = merged.drop(columns=['_obs_key'])
+        if barcode_col in merged.columns:
             merged = merged.drop(columns=[barcode_col])
         
         # Set index back
-        merged = merged.set_index('index')
-        merged.index.name = None
-        
+        merged.index = adata.obs_names
+        merged.index.name = None      
+
         # Verify dtypes
         print("\nData types after merge:")
         for col in new_meta.columns:
@@ -842,7 +850,7 @@ def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", g
     # plot umaps
     score_cols = [f'{ct}_score' for ct in makers_dict.keys() if f'{ct}_score' in adata.obs]
     sc.pl.umap(adata, color=score_cols, cmap=color_map, ncols=ncol)
-    sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap=color_map)
+    sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap=color_map, )#vmin=-1, vmax=1)
 
 def wilcoxon_between_two_clusters(
     adata, 

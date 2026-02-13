@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import os
 import subprocess
+import json
 
 from scipy import sparse
 from anndata import AnnData
@@ -502,7 +503,7 @@ def DEG_deseq2_edgeR(
             design_formula,
             layer=None)
 
-    pds2.fit()
+    pds2.fit() # cook=true default (avoid single sample drives the result)
 
     contrast = pds2.contrast(
         column=CONTRAST_VARIABLE, 
@@ -650,6 +651,74 @@ def run_nebula_parallel_script(
         print(f"Command: {' '.join(cmd)}")
         print(f"Return code: {e.returncode}")
         raise
+
+def fdrtool_empirical_null(stats, statistic="normal", cut_off_method="fndr", cut_off=0.75) -> dict:
+    """
+    Wrapper around R's fdrtool for empirical null modelling.
+
+    https://github.com/cran/fdrtool/blob/master/R/fdrtool.R 
+    https://cran.r-project.org/web/packages/fdrtool/fdrtool.pdf 
+
+    Corrects miscalibrated DESeq2 p-values caused by an incorrect null
+    variance assumption (hill-shaped p-value histogram). Estimates the true
+    null standard deviation σ from the z-scores directly, then recomputes
+    p-values from N(0, σ²).
+
+    Parameters
+    ----------
+    stats           : Wald z-scores from DESeq2 (mydata$stat). Must be finite floats.
+    statistic       : null model — "normal" (default) for z-scores,
+    cut_off_method  : how to find the null zone cutoff (c)
+    cut_off         : only used if cutoff.method="pct0" — the quantile of |z| used as cutoff, ignore otherwise
+
+    Returns
+    -------
+    dict with keys:
+        pval   : corrected p-values recomputed from N(0, σ̂²)
+        qval   : tail-area FDR (Fdr) via Grenander + η₀  — use as padj
+        lfdr   : local FDR — per-gene probability of being a null
+        sigma  : estimated null standard deviation (expect < 1 for hill-shape)
+        eta0   : estimated proportion of null genes
+    """
+
+    from rpy2.robjects import FloatVector
+    import tempfile
+
+    tmp_path = tempfile.mktemp(suffix=".json")  # Avoid to sue same path in case of concurrency
+
+    try:
+        r_stats = FloatVector(stats)
+        r.assign("stats_vec", r_stats) # move to R
+
+        r(f"""
+            library(fdrtool)
+            library(jsonlite)
+
+            result <- fdrtool(
+                stats_vec,
+                statistic    = "{statistic}",
+                plot         = FALSE,
+                verbose      = FALSE,
+                cutoff.method = "{cut_off_method}"
+            )
+
+            output <- list(
+                pval  = as.numeric(result$pval),
+                qval  = as.numeric(result$qval),
+                lfdr  = as.numeric(result$lfdr),
+                sigma = as.numeric(result$param[1, 5]),  # ← column 5 = scale param (sd)
+                eta0  = as.numeric(result$param[1, 3])   # ← column 3 = eta0
+            )
+
+            write(toJSON(output, auto_unbox = TRUE), "{tmp_path}")
+        """)
+
+        with open(tmp_path) as f:
+            return json.load(f)
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 # def run_nebula_parallel_script(
