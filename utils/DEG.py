@@ -602,6 +602,9 @@ def run_nebula_parallel_script(
         "--save-tmp", "1" if save_tmp else "0"
     ]
     
+    print(f"cmd list: {cmd}")  # Add this
+    print(f"Running command: {' '.join(cmd)}")
+    
     # Add covariates if provided
     if covs:
         cmd.extend(["--covs", ",".join(covs)])
