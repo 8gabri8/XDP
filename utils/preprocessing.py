@@ -21,6 +21,9 @@ def save_files_for_R_conversion(adata, PATH_BASE):
     from scipy.io import mmwrite
     import pandas as pd
     import os
+
+    if not np.issubdtype(adata.X.dtype, np.integer):
+        raise ValueError(f"adata.X dtype is {adata.X.dtype}, expected integer counts.")
     
     os.makedirs(PATH_BASE, exist_ok=True)
     
@@ -828,7 +831,7 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
 
 
 
-def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds"):
+def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds", umap_name="umap"):
 
     if gene_col is not None:
         adata.var.index = adata.var[gene_col]
@@ -849,8 +852,11 @@ def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", g
 
     # plot umaps
     score_cols = [f'{ct}_score' for ct in makers_dict.keys() if f'{ct}_score' in adata.obs]
-    sc.pl.umap(adata, color=score_cols, cmap=color_map, ncols=ncol)
-    sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap=color_map, )#vmin=-1, vmax=1)
+    sc.pl.embedding(adata, basis=umap_name, color=score_cols, cmap=color_map, ncols=ncol)
+    if "spatial" in adata.obsm.keys():
+        sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap=color_map, )#vmin=-1, vmax=1)
+
+    return score_cols
 
 def wilcoxon_between_two_clusters(
     adata, 
