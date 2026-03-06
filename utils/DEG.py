@@ -792,10 +792,10 @@ def fdrtool_empirical_null(stats, statistic="normal", cut_off_method="fndr", cut
 #         print(f"\nSTDERR:\n{e.stderr}")  # ADD THIS!
 #         raise
 
-def plot_vulcano(df, logfc_col, pval_col, gene_col, 
-                  categories=None, 
+def plot_vulcano(df, logfc_col, pval_col, gene_col,
+                  categories=None,
                   pval_thresh=0.05, logfc_thresh=0.5,
-                  to_label=10, figsize=(10, 8), max_y=None):
+                  to_label=10, figsize=(10, 8), max_y=None, ax=None, print_labels=True):
     """
     Simple volcano plot with category coloring.
     
@@ -811,94 +811,113 @@ def plot_vulcano(df, logfc_col, pval_col, gene_col,
         Column name for gene names
     categories : dict
         {'Category Name': ([gene1, gene2, ...], 'color'), ...}
-        Example: {'TP': (['GENE1', 'GENE2'], 'green'), 
+        Example: {'TP': (['GENE1', 'GENE2'], 'green'),
                   'FP': (['GENE3'], 'red')}
     pval_thresh : float
         P-value threshold for horizontal line
     logfc_thresh : float
         LogFC threshold for vertical lines
     to_label : int
-        Number of top genes to label (per direction: up/down)
+        Number of top significant genes to label by -log10(p) (per direction: up/down).
+        Significant category genes are always labeled on top of this.
     figsize : tuple
         Figure size
     max_y : float, optional
         Maximum y-axis value (clips -log10p for visualization)
     """
-    
+
     df = df.copy()
-    
+
     # Drop NaN values
     df = df.dropna(subset=[logfc_col, pval_col, gene_col])
-    
+
     # Handle zero p-values
     if (df[pval_col] == 0).any():
         print(f'Warning: {(df[pval_col] == 0).sum()} genes with p-value=0, replacing with 1e-323')
         df.loc[df[pval_col] == 0, pval_col] = 1e-323
-    
+
     # Calculate -log10(p)
     df['-log10p'] = -np.log10(df[pval_col])
-    
+
     # Clip if requested
     if max_y is not None:
         clipped = (df['-log10p'] > max_y).sum()
         if clipped > 0:
             print(f'Clipping {clipped} genes with -log10(p) > {max_y}')
         df['-log10p'] = df['-log10p'].clip(upper=max_y)
-    
+
     # Assign each gene to a category or 'Other'
     gene_to_category = {}
     category_colors = {}
-    
+
     if categories:
         for cat_name, (gene_list, color) in categories.items():
             category_colors[cat_name] = color
             for gene in gene_list:
                 gene_to_category[gene] = cat_name
-    
+
     df['category'] = df[gene_col].map(gene_to_category).fillna('Other')
-    
+
     # Plot
-    fig, ax = plt.subplots(figsize=figsize)
-    
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+
     # Plot 'Other' first (gray background)
     other_mask = df['category'] == 'Other'
     if other_mask.any():
         ax.scatter(df.loc[other_mask, logfc_col], df.loc[other_mask, '-log10p'],
-                  c='lightgray', alpha=0.5, s=20, label='Other', zorder=1, edgecolors='none')
-    
+                   c='lightgray', alpha=0.5, s=20, label='Other', zorder=1, edgecolors='none')
+
     # Plot each category
     for cat in df['category'].unique():
         if cat == 'Other':
             continue
         mask = df['category'] == cat
         ax.scatter(df.loc[mask, logfc_col], df.loc[mask, '-log10p'],
-                  c=category_colors[cat], alpha=0.7, s=30, label=cat, zorder=2, edgecolors='none')
-    
+                   c=category_colors[cat], alpha=0.7, s=30, label=cat, zorder=2, edgecolors='none')
+
     # Threshold lines
     ax.axhline(-np.log10(pval_thresh), ls='--', c='black', lw=2, alpha=0.5, zorder=0)
-    ax.axvline(logfc_thresh, ls='--', c='black', lw=2, alpha=0.5, zorder=0)
-    ax.axvline(-logfc_thresh, ls='--', c='black', lw=2, alpha=0.5, zorder=0)
-    
-    # Label top genes (like original: top UP and top DOWN separately)
-    df['sorter'] = df['-log10p'] * df[logfc_col]  # Signed score
-    
-    # Top UP genes (positive logFC)
-    top_up = df[df[logfc_col] > 0].nlargest(to_label, 'sorter')
-    # Top DOWN genes (negative logFC)
-    top_down = df[df[logfc_col] < 0].nsmallest(to_label, 'sorter')
-    
-    label_df = pd.concat([top_up, top_down])
-    
+    ax.axvline( logfc_thresh,          ls='--', c='black', lw=2, alpha=0.5, zorder=0)
+    ax.axvline(-logfc_thresh,          ls='--', c='black', lw=2, alpha=0.5, zorder=0)
+
+    # Label top N significant genes by -log10(p), plus all significant category genes
+    sig_mask = (df[pval_col] < pval_thresh) & (df[logfc_col].abs() > logfc_thresh)
+    sig_df   = df[sig_mask]
+
+    top_up   = sig_df[sig_df[logfc_col] > 0].nlargest(to_label, '-log10p')
+    top_down = sig_df[sig_df[logfc_col] < 0].nlargest(to_label, '-log10p')
+    top_genes = pd.concat([top_up, top_down])
+
+    cat_sig  = sig_df[sig_df['category'] != 'Other']
+    label_df = pd.concat([top_genes, cat_sig]).drop_duplicates(subset=[gene_col])
+
     texts = []
-    for _, row in label_df.iterrows():
-        txt = ax.text(row[logfc_col], row['-log10p'], row[gene_col], 
-                     fontsize=9, weight='bold')
-        txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
-        texts.append(txt)
-    
-    if len(texts) > 0:
-        adjust_text(texts, arrowprops=dict(arrowstyle='-', color='k', lw=1))
-    
+    if print_labels:
+        for _, row in label_df.iterrows():
+            txt = ax.text(row[logfc_col], row['-log10p'], row[gene_col],
+                        fontsize=9, weight='bold')
+            txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='w')])
+            texts.append(txt)
+
+        if texts:
+            adjust_text(
+                texts,
+                ax=ax,
+                arrowprops=dict(arrowstyle='-', color='k', lw=1),
+                expand_points=(1.2, 1.2),
+                only_move={'points': 'y', 'text': 'xy'},
+                force_text=(0.5, 0.8),
+            )
+
+    # After adjust_text, clip any labels that still escaped
+    ymin, ymax = ax.get_ylim()
+    xmin, xmax = ax.get_xlim()
+    for txt in texts:
+        x, y = txt.get_position()
+        if not (xmin <= x <= xmax and ymin <= y <= ymax):
+            txt.set_visible(False)  # hide escapees instead of showing them outside
+
     # Styling
     ax.set_xlabel('Log2 Fold Change', fontsize=12, weight='bold')
     ax.set_ylabel('-Log10(P-value)', fontsize=12, weight='bold')
@@ -906,10 +925,10 @@ def plot_vulcano(df, logfc_col, pval_col, gene_col,
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.tick_params(width=2)
-    
+
     plt.tight_layout()
-    plt.show()
-    
+    #plt.show()
+
     return df
 
 def plot_nebula_results(df_nebula, df_true_degs, col_p, col_logFC, col_gene, add_adj_p_col=True, PVAL_THR=0.05, LOGFC_THR=0.5, max_FDR=5):

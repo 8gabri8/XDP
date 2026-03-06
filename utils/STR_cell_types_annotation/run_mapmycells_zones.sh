@@ -75,7 +75,7 @@ if [ ! -e "${ref_dir}/precomputed_stats.h5" ] || [ "${clobber}" -eq 1 ]; then
 	python -m cell_type_mapper.cli.precompute_stats_scrattch \
 		--h5ad_path "${ref}" \
 		--hierarchy "[\"${zone_col}\"]" \
-		--n_processors 16 \
+		--n_processors 24 \
 		--output_path "${output_path}/precomputed_stats.h5" \
 		--clobber True \
 		--normalization raw

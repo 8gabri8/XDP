@@ -830,11 +830,25 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
     return deg_filtered, deg_genes, enriched_paths_df
 
 
+def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, markers=None):
+    
+    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False)
+    
+    gene_to_ct = {g: ct for ct, genes in markers.items() for g in genes} if markers else {}
+    
+    results = {}
+    for cluster in adata.obs[cluster_col].unique():
+        ranked = sc.get.rank_genes_groups_df(adata, group=str(cluster)).head(n_genes)
+        if markers:
+            ranked["cell_type"] = ranked["names"].map(gene_to_ct).fillna("")
+        results[cluster] = ranked
+    
+    return results
 
-def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds", umap_name="umap"):
+def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds", umap_name="umap", vmin=None, vmax=None):
 
     if gene_col is not None:
-        adata.var.index = adata.var[gene_col]
+        original_index = adata.var.index.copy()   # ← save
         adata.var.index = adata.var[gene_col].astype(str)
         adata.var.index.name = '_index'
         adata.var_names_make_unique()
@@ -852,9 +866,12 @@ def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", g
 
     # plot umaps
     score_cols = [f'{ct}_score' for ct in makers_dict.keys() if f'{ct}_score' in adata.obs]
-    sc.pl.embedding(adata, basis=umap_name, color=score_cols, cmap=color_map, ncols=ncol)
+    sc.pl.embedding(adata, basis=umap_name, color=score_cols, cmap=color_map, ncols=ncol, vmin=vmin, vmax=vmax) #vmin=-1, vmax=1
     if "spatial" in adata.obsm.keys():
         sc.pl.embedding(adata, basis="spatial", color=score_cols, ncols=ncol, size=40, cmap=color_map, )#vmin=-1, vmax=1)
+
+    if gene_col is not None:
+        adata.var.index = original_index 
 
     return score_cols
 
