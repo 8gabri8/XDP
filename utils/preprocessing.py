@@ -100,6 +100,63 @@ def build_qs_from_python_files(PATH_BASE, saving_path, contrast_var=None, refere
     ''')
     gc.collect()
 
+
+def read_qs_save_files(qs_path, PATH_BASE, assay="RNA"):
+    import os
+    os.makedirs(PATH_BASE, exist_ok=True)
+
+    r(f'''
+    library(Matrix)
+    library(Seurat)
+    library(qs)
+
+    sobj <- qread("{qs_path}")
+    cat("Seurat version:", as.character(packageVersion("Seurat")), "\\n")
+
+    # works for both Seurat v4 and v5
+    if (inherits(sobj[["{assay}"]], "Assay5")) {{
+        cat("Detected Seurat v5 assay\\n")
+        mtx <- LayerData(sobj, assay="{assay}", layer="counts")
+    }} else {{
+        cat("Detected Seurat v4 assay\\n")
+        mtx <- GetAssayData(sobj, assay="{assay}", slot="counts")
+    }}
+
+    writeMM(t(mtx), "{PATH_BASE}/counts_matrix.mtx")
+    writeLines(rownames(mtx), "{PATH_BASE}/genes.txt")
+    writeLines(colnames(mtx), "{PATH_BASE}/barcodes.txt")
+    write.csv(sobj@meta.data, "{PATH_BASE}/metadata.csv")
+
+    rm(sobj); gc()
+    ''')
+    gc.collect()
+
+def build_h5ad_from_files(PATH_BASE, saving_path):
+    from scipy.io import mmread
+    from scipy.sparse import csr_matrix
+    import pandas as pd
+    import anndata as ad
+
+    X        = csr_matrix(mmread(f"{PATH_BASE}/counts_matrix.mtx"))
+    genes    = pd.read_csv(f"{PATH_BASE}/genes.txt",    header=None)[0].tolist()
+    barcodes = pd.read_csv(f"{PATH_BASE}/barcodes.txt", header=None)[0].tolist()
+    metadata = pd.read_csv(f"{PATH_BASE}/metadata.csv", index_col=0)
+
+    # clean metadata columns — convert problematic types to string
+    for col in metadata.columns:
+        if metadata[col].dtype == object:
+            metadata[col] = metadata[col].astype(str)
+
+    adata           = ad.AnnData(X=X)
+    adata.obs_names = barcodes
+    adata.var_names = genes
+    adata.obs       = metadata.reindex(adata.obs_names)
+
+    adata.X = adata.X.astype(np.int32)
+    adata.write_h5ad(saving_path)
+
+    return adata
+
 def add_metadata_to_qs(base_file_path, new_metadata_df_path, file_type=None, 
                                     col_name_contain=None, barcode_col="barcode"):
     """

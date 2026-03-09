@@ -541,6 +541,23 @@
 
   },
 
+  "mapping_coupling_for_zoning_4_zones": {
+    "_description": "How to group cells to get zoning from script. key=mmc_grouo_name, value=name of the .h5ad taht continas relatve cells to use for mapping",
+    "_ATTENTION": "The item names MUST match the names of the h5ad files used for mapping (without undrescore).",
+    "_biology": "...",
+
+    "STRd D1 Striosome MSN": "STRd D1 Striosome MSN 4 zones",
+
+    "STRd D2 Striosome MSN": "STRd D2 Striosome MSN 4 zones",
+
+    "STRv D1 NUDAP MSN": "eMSN 4 zones",
+    "STR D1D2 Hybrid MSN": "eMSN 4 zones",
+    "STRd D2 StrioMat Hybrid MSN": "eMSN 4 zones",
+
+    "Astrocyte": "Astrocyte 4 zones"
+
+  },
+
   "category_MSN_group_names": {
     "_description": "MSN with names as they are",
     "_note": "All entries map to 'MSN'",
