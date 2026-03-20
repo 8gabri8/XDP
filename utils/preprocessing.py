@@ -17,6 +17,9 @@ r = ro.r
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 
+custom_palette = ["#E63946","#2196F3","#4CAF50","#FF9800","#9C27B0","#00BCD4","#FFEB3B","#F06292","#8BC34A","#FF5722","#3F51B5","#009688","#795548","#607D8B","#E91E63","#CDDC39","#FF1744","#00E676","#D500F9","#FFAB40","#1DE9B6","#FF6D00","#6200EA","#76FF03","#FF4081","#00B0FF","#FFD740","#69F0AE","#F50057","#40C4FF","#B2FF59","#EA80FC","#CCFF90","#84FFFF","#FF6E40","#18FFFF","#E040FB","#AEEA00","#FF9E80","#80D8FF","#CFD8DC"]
+
+
 def save_files_for_R_conversion(adata, PATH_BASE):
     from scipy.io import mmwrite
     import pandas as pd
@@ -887,15 +890,22 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
     return deg_filtered, deg_genes, enriched_paths_df
 
 
-def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, markers=None):
+def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, markers=None,
+                             min_in_group_fraction=0.25, max_out_group_fraction=0.2):
     
-    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False)
+    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False,
+                            min_in_group_fraction=min_in_group_fraction,
+                            max_out_group_fraction=max_out_group_fraction)
     
     gene_to_ct = {g: ct for ct, genes in markers.items() for g in genes} if markers else {}
     
     results = {}
     for cluster in adata.obs[cluster_col].unique():
-        ranked = sc.get.rank_genes_groups_df(adata, group=str(cluster)).head(n_genes)
+        ranked = sc.get.rank_genes_groups_df(
+            adata, 
+            group=str(cluster),
+            pval_cutoff=0.05,
+        ).head(n_genes)
         if markers:
             ranked["cell_type"] = ranked["names"].map(gene_to_ct).fillna("")
         results[cluster] = ranked

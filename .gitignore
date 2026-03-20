@@ -14,3 +14,5 @@ data
 data/*
 script/_old
 script/_old/*
+
+/utils/SCENIC/*
