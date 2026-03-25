@@ -3,365 +3,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 from statsmodels.stats.multitest import multipletests
+from scipy.stats import fisher_exact
 import scanpy as sc
-
-
-# # ---------------------------------------------------------------------------
-# # Main function
-# # ---------------------------------------------------------------------------
-
-# def find_depressed_genes(
-#     adata_healthy,                        # AnnData, healthy donors only
-#     donor_col      = "donor_id",          # obs column: donor identifier
-#     age_col        = "age",               # obs column: donor age
-#     umi_col        = "n_counts",          # obs column: per-cell total counts
-#     covariate_cols = None,                # extra regression covariates
-#     threshold      = 0.02,               # max DR in young donors (e.g. 0.02 = 2%)
-#     min_cells      = 30,                  # min cells per donor to be included
-#     n_perm         = 10_000,             # permutations for the FWL test
-#     fdr_alpha      = 0.05,               # BH FDR threshold
-#     seed           = 42,
-# ):
-
-#     EXCLUDE_RE = re.compile(r"^MT-|^RPS\d|^RPL\d|^HB[^P]")
-
-#     rng       = np.random.RandomState(seed)
-#     var_names = list(adata_healthy.var_names)
-#     obs       = adata_healthy.obs
-#     counts = adata_healthy.X
-
-#     # check that x is raw counta
-#     assert (counts[:100,:100].toarray() % 1 == 0).all(), "counts must be integers"
-
-#     print(f"  Input: {counts.shape[0]:,} cells, {obs[donor_col].nunique()} donors")
-
-#     # ------------------------------------------------------------------
-#     # Step 1 — drop donors with too few cells
-#     #
-#     # A donor with very few cells has unreliable detection rates: a gene
-#     # seen in 2 out of 10 cells looks like DR=20% but is just sampling noise.
-#     # ------------------------------------------------------------------
-
-#     donors        = obs[donor_col].values
-#     unique_donors = np.unique(donors)
-
-#     donor_ncells = {d: int((donors == d).sum()) for d in unique_donors}
-#     valid_donors = sorted(d for d, n in donor_ncells.items() if n >= min_cells)
-#     n_dropped    = len(unique_donors) - len(valid_donors)
-
-#     print(f"  Donors kept: {len(valid_donors)}  "
-#           f"(dropped {n_dropped} with < {min_cells} cells)")
-#     if not valid_donors:
-#         raise ValueError("No donors pass the minimum cell count filter.")
-
-#     # ------------------------------------------------------------------
-#     # Step 2 — downsample all donors to the same number of cells
-#     #
-#     # Without this, a donor with 5,000 cells will always show higher DR
-#     # than one with 200 cells for the same gene, simply because of more
-#     # sampling draws. Equalising cell counts makes DR comparable across donors.
-#     #
-#     # Strategy: find the minimum cell count, then for each donor randomly
-#     # select exactly that many cells. Indices are decided here and reused
-#     # when loading the count matrix — same two-pass approach as the original.
-#     # ------------------------------------------------------------------
-#     min_n = min(donor_ncells[d] for d in valid_donors)
-#     print(f"  Downsampling all donors to {min_n} cells")
-
-#     donor_keep = {}
-#     for d in valid_donors:
-#         total = donor_ncells[d]
-#         if total == min_n:
-#             donor_keep[d] = set(range(total))           # keep all, no shuffle
-#         else:
-#             donor_keep[d] = set(
-#                 rng.choice(total, size=min_n, replace=False).tolist()
-#             )
-
-#     # ------------------------------------------------------------------
-#     # Step 3 — compute per-gene detection rate (DR) per donor
-#     #
-#     # DR = fraction of downsampled cells where the gene has >= 1 count.
-#     # This is binary (detected / not detected), not expression level.
-#     #
-#     # Also collect donor-level metadata for the regression:
-#     #   - age, covariates: taken from the first cell (donor-level, not
-#     #     cell-level, so every cell has the same value for this donor)
-#     #   - mean_log_umi: average of log(total counts) across ALL cells of
-#     #     the donor, not just the subsample. This is a property of the donor's
-#     #     sequencing depth, independent of which cells were sampled.
-#     # ------------------------------------------------------------------
-#     n_genes = len(var_names)
-
-#     # detect_matrix[g, j] = DR of gene g in donor j
-#     detect_matrix = np.zeros((n_genes, len(valid_donors)), dtype=np.float32)
-#     meta_records  = []
-
-#     for j, d in enumerate(valid_donors):
-#         all_idx    = np.where(donors == d)[0]           # all cell indices for d
-#         local_keep = sorted(donor_keep[d])              # which of those to keep
-#         selected   = all_idx[local_keep]                # global indices of kept cells
-
-#         # Count how many kept cells have >= 1 count per gene, then normalise
-#         detected = np.asarray(
-#             (counts[selected, :] > 0).sum(axis=0)
-#         ).ravel()
-#         detect_matrix[:, j] = detected / min_n          # DR in [0, 1]
-
-#         # Donor-level metadata (same value for all cells of this donor)
-#         first  = obs.iloc[all_idx[0]]
-#         record = {
-#             "donor_id":     d,
-#             "age":          first[age_col],
-#             # log of raw counts, no +1 — matches the original exactly
-#             "mean_log_umi": np.log(
-#                 obs.iloc[all_idx][umi_col].values.astype(float)
-#             ).mean(),
-#         }
-#         for col in covariate_cols:
-#             record[col] = first[col]
-
-#         meta_records.append(record)
-
-#     donor_meta = pd.DataFrame(meta_records)
-
-#     # ------------------------------------------------------------------
-#     # Step 4 — define Young (Y) and Old (O) donor groups by age quartile
-#     #
-#     # Y = bottom 25th percentile of age among valid donors
-#     # O = top 75th percentile of age among valid donors
-#     #
-#     # These are used ONLY to compute mean DR for candidate gene selection
-#     # (steps 5-6). The permutation test in step 7 uses ALL donors to
-#     # estimate the age slope across the full age gradient.
-#     # ------------------------------------------------------------------
-#     ages       = donor_meta["age"].values
-#     q25, q75   = np.percentile(ages, [25, 75])
-#     young_mask = ages <= q25
-#     old_mask   = ages >= q75
-
-#     print(f"  Young (age <= {q25:.0f}): {young_mask.sum()} donors")
-#     print(f"  Old   (age >= {q75:.0f}): {old_mask.sum()} donors")
-
-#     # Mean DR across young / old donors for each gene
-#     young_detect = detect_matrix[:, young_mask].mean(axis=1)  # shape: (n_genes,)
-#     old_detect   = detect_matrix[:, old_mask].mean(axis=1)    # shape: (n_genes,)
-
-#     # ------------------------------------------------------------------
-#     # Step 5 — select candidate genes
-#     #
-#     # A gene is a candidate if:
-#     #   (a) mean DR in young donors <= threshold  →  it is silent in youth
-#     #   (b) it is not a mitochondrial / ribosomal / hemoglobin gene
-#     #
-#     # Note: whether old_detect > threshold (exceeds_in_old) is saved as
-#     # an annotation in the output table but is NOT a hard filter. The
-#     # permutation test is the only statistical gate.
-#     # ------------------------------------------------------------------
-#     exclude_mask   = np.array([bool(EXCLUDE_RE.match(g)) for g in var_names])
-#     candidate_mask = (young_detect <= threshold) & ~exclude_mask
-#     n_cand         = int(candidate_mask.sum())
-
-#     print(f"\n  Threshold: {threshold*100:.1f}%")
-#     print(f"  Candidate genes: {n_cand}")
-#     if n_cand == 0:
-#         raise ValueError(
-#             f"No candidates found at threshold={threshold}. "
-#             "Try raising the threshold."
-#         )
-
-#     # Subset detection matrix and gene names to candidates only
-#     detect_cand = detect_matrix[candidate_mask, :]              # (n_cand, n_donors)
-#     cand_names  = [g for g, m in zip(var_names, candidate_mask) if m]
-
-#     # ------------------------------------------------------------------
-#     # Step 6 — FWL permutation test
-#     #
-#     # For each candidate gene, estimate the age slope (beta) on detection
-#     # rate after controlling for covariates, and test whether it is
-#     # significantly positive via permutation.
-#     #
-#     # See _run_permutation_test for full details.
-#     # ------------------------------------------------------------------
-#     print(f"  Running permutation test ({n_perm:,} permutations)...")
-#     perm_res = _run_permutation_test(
-#         detect_cand, donor_meta, covariate_cols, n_perm, seed
-#     )
-
-#     # ------------------------------------------------------------------
-#     # Step 7 — assemble results and apply FDR threshold
-#     # ------------------------------------------------------------------
-#     results_df = pd.DataFrame({
-#         "gene":           cand_names,
-#         "young_detect":   young_detect[candidate_mask],
-#         "old_detect":     old_detect[candidate_mask],
-#         "exceeds_in_old": old_detect[candidate_mask] > threshold,
-#         "obs_beta":       perm_res["obs_beta"].values,
-#         "perm_pval":      perm_res["perm_pval"].values,
-#         "perm_padj":      perm_res["perm_padj"].values,
-#         "n_donors":       len(valid_donors),
-#     })
-
-#     sig_mask  = results_df["perm_padj"] < fdr_alpha
-#     gene_list = results_df.loc[sig_mask, "gene"].tolist()
-
-#     print(f"  Positive beta: {int((results_df['obs_beta'] > 0).sum())} / {n_cand}")
-#     print(f"  Significant (padj < {fdr_alpha}): {sig_mask.sum()}")
-#     print(f"  Final G: {len(gene_list)} genes")
-
-#     return gene_list, results_df, donor_meta
-
-
-# ---------------------------------------------------------------------------
-# FWL permutation test
-# ---------------------------------------------------------------------------
-
-# def _run_permutation_test(
-#     detect_matrix,    # (n_genes, n_donors) detection rates, candidates only
-#     meta,             # per-donor DataFrame with age, mean_log_umi, covariates
-#     covariate_cols,   # list of extra covariate column names
-#     n_perm = 10_000,
-#     seed   = 42,
-# ):
-#     """
-#     Test whether each gene's detection rate increases with age, using the
-#     Frisch-Waugh-Lovell (FWL) theorem + permutation for inference.
-
-#     WHY FWL?
-#     Running one OLS per gene per permutation would cost n_genes * n_perm
-#     full matrix solves. FWL reduces this to:
-#       - one QR decomposition (shared across all genes and permutations)
-#       - one matrix residualization of all genes (done once)
-#       - n_perm cheap vector dot products
-#     The result is mathematically identical to per-gene OLS.
-
-#     HOW IT WORKS (three steps):
-#       1. Residualize age on covariates → age_resid
-#          (the part of age that covariates cannot explain)
-#       2. Residualize all gene detection rates on the same covariates → detect_resid
-#          (the part of DR that covariates cannot explain)
-#       3. The OLS slope of detect_resid on age_resid is the age coefficient,
-#          identical to what full OLS would give.
-
-#     PERMUTATION NULL:
-#       Shuffle age labels 10,000 times. For each shuffle, re-residualize the
-#       permuted age vector and recompute the slope. This builds a null
-#       distribution of slopes under "no age effect". The one-sided p-value is
-#       the fraction of null slopes >= the observed slope.
-
-#     detect_resid is NOT re-computed for each permutation — it stays fixed.
-#     Only age is shuffled, because the null hypothesis is specifically that
-#     age labels are arbitrary, not that detection rates are arbitrary.
-#     """
-
-#     rng = np.random.RandomState(seed)
-#     n_genes, n_donors = detect_matrix.shape
-
-#     # ------------------------------------------------------------------
-#     # Build covariate matrix X
-#     #
-#     # Always includes: intercept, logUMI (linear), logUMI² (quadratic).
-#     # logUMI² matters because DR saturates at high depth — the relationship
-#     # is not linear.
-#     # Plus any user-specified covariates (default: sex, PC1–PC5).
-#     # ------------------------------------------------------------------
-#     log_umi = meta["mean_log_umi"].values
-#     X_cov = np.column_stack([
-#         np.ones(n_donors),                                          # intercept
-#         log_umi,                                                    # logUMI
-#         log_umi ** 2,                                               # logUMI²
-#         *[meta[col].values.astype(float) for col in covariate_cols],
-#     ])
-
-#     # QR decomposition of X: X = QR, Q has orthonormal columns.
-#     # Projection onto column space of X is simply Q @ Q.T,
-#     # avoiding the numerically unstable (X.T @ X)^{-1} inverse.
-#     Q, _ = np.linalg.qr(X_cov, mode="reduced")   # Q shape: (n_donors, k)
-
-#     # ------------------------------------------------------------------
-#     # FWL step 1 — residualize age on covariates (done once)
-#     #
-#     #   age_resid = age - Q (Q.T age)
-#     #
-#     # age_resid is the part of age that covariates cannot predict.
-#     # This is the "clean" age signal used in all regressions.
-#     # ------------------------------------------------------------------
-#     age_vec   = meta["age"].values.astype(float)
-#     age_resid = age_vec - Q @ (Q.T @ age_vec)     # shape: (n_donors,)
-#     ss_age    = float(np.sum(age_resid ** 2))      # scalar denominator, reused below
-
-#     if ss_age < 1e-12:
-#         raise ValueError(
-#             "No residual age variance after removing covariates. "
-#             "Check for collinearity between age and the covariate columns."
-#         )
-
-#     # ------------------------------------------------------------------
-#     # FWL step 2 — residualize all genes on covariates (done once)
-#     #
-#     #   detect_resid = Y - Q (Q.T Y.T).T        [shape: n_genes x n_donors]
-#     #
-#     # Each row is one gene's detection rates with all covariate effects removed.
-#     # This is the expensive step but is paid only once, not once per permutation.
-#     # ------------------------------------------------------------------
-#     detect_resid = detect_matrix - (Q @ (Q.T @ detect_matrix.T)).T
-
-#     # ------------------------------------------------------------------
-#     # FWL step 3 — observed age beta for every gene (one matrix multiply)
-#     #
-#     #   beta_g = (detect_resid[g] · age_resid) / ||age_resid||²
-#     #
-#     # Vectorised across all genes: detect_resid @ age_resid / ss_age
-#     # Positive beta = detection rate increases with age = de-repression.
-#     # ------------------------------------------------------------------
-#     obs_betas = (detect_resid @ age_resid) / ss_age   # shape: (n_genes,)
-
-#     # ------------------------------------------------------------------
-#     # Permutation null distribution
-#     #
-#     # Shuffle age labels n_perm times. All permutations are done at once
-#     # as matrix operations:
-#     #
-#     #   perm_indices   : (n_donors, n_perm)  — each column = one permutation
-#     #   age_perm_mat   : (n_donors, n_perm)  — shuffled age vectors
-#     #   age_resid_perm : (n_donors, n_perm)  — residualized shuffled ages
-#     #   beta_perm_mat  : (n_genes,  n_perm)  — all null betas
-#     #
-#     # detect_resid stays fixed — only age is shuffled (see docstring above).
-#     # ------------------------------------------------------------------
-#     perm_indices   = np.column_stack(
-#         [rng.permutation(n_donors) for _ in range(n_perm)]
-#     )                                                       # (n_donors, n_perm)
-#     age_perm_mat   = age_vec[perm_indices]                  # (n_donors, n_perm)
-#     age_resid_perm = age_perm_mat - Q @ (Q.T @ age_perm_mat)  # residualize
-#     ss_age_perm    = np.sum(age_resid_perm ** 2, axis=0)   # (n_perm,) one ss per perm
-
-#     beta_perm_mat  = (
-#         (detect_resid @ age_resid_perm) / ss_age_perm[np.newaxis, :]
-#     )                                                       # (n_genes, n_perm)
-
-#     # ------------------------------------------------------------------
-#     # One-sided p-value per gene
-#     #
-#     #   p_g = (1 + #{perms where beta_perm >= obs_beta}) / (1 + n_perm)
-#     #
-#     # One-sided: de-repression means DR goes UP with age.
-#     # The +1 in numerator and denominator prevents p=0 (which would be
-#     # dishonest given a finite number of permutations).
-#     # ------------------------------------------------------------------
-#     perm_counts = np.sum(
-#         beta_perm_mat >= obs_betas[:, np.newaxis], axis=1
-#     )                                                       # (n_genes,)
-#     perm_pvals  = (1 + perm_counts) / (1 + n_perm)
-
-#     # BH FDR correction across all candidate genes jointly
-#     _, perm_padjs, _, _ = multipletests(perm_pvals, method="fdr_bh")
-
-#     return pd.DataFrame({
-#         "obs_beta":  obs_betas,
-#         "perm_pval": perm_pvals,
-#         "perm_padj": perm_padjs,
-#     })
 
 
 def find_depressed_genes(
@@ -369,6 +12,7 @@ def find_depressed_genes(
     donor_col      = "donor_id",
     age_col        = "age",
     tot_UMI_per_cell_col        = "n_counts", # total number of UMI counts per cell
+    covariate_cols       = None,
     threshold      = 0.02,
     min_cells      = 30,
     n_perm         = 10_000,
@@ -376,7 +20,6 @@ def find_depressed_genes(
     seed           = 42,
 ):
     EXCLUDE_RE = re.compile(r"^MT-|^RPS\d|^RPL\d|^HB[^P]")
-    rng = np.random.RandomState(seed)
 
     adata = adata_healthy.copy()
     assert (adata.X[:100, :100].toarray() % 1 == 0).all(), "X must be raw counts"
@@ -393,7 +36,7 @@ def find_depressed_genes(
 
     adata_sub = adata[adata.obs.groupby(donor_col).sample(n=min_n, random_state=seed).index].copy()
 
-    print(f"  After downsampling: {adata_sub.obs[donor_col].value_counts()} cells, {adata_sub.n_vars} genes, {adata_sub.obs[donor_col].nunique()} donors")
+    #print(f"  After downsampling: {adata_sub.obs[donor_col].value_counts()} cells, {adata_sub.n_vars} genes, {adata_sub.obs[donor_col].nunique()} donors")
 
     # --- Step 3: compute per-donor detection rate --- (samples x genes)
     detect_matrix = np.zeros((len(valid_donors), adata_sub.n_vars))
@@ -402,8 +45,6 @@ def find_depressed_genes(
         cells = adata_sub[adata_sub.obs[donor_col] == d].X
         detect_matrix[j] = np.asarray((cells > 0).mean(axis=0)).ravel()
 
-    detect_df = pd.DataFrame(detect_matrix, index=valid_donors, columns=adata_sub.var_names)
-
     # compute donor-level metadata
 
     donor_meta = adata.obs.groupby(donor_col).agg(
@@ -411,14 +52,25 @@ def find_depressed_genes(
         mean_log_umi  = (tot_UMI_per_cell_col, lambda x: np.log(x.astype(float)).mean()),
         mean_log_umi2 = (tot_UMI_per_cell_col, lambda x: (np.log(x.astype(float))**2).mean()),
     )
+
     donor_meta = donor_meta.loc[valid_donors] # reindex to match detect_df
-    detect_df = detect_df.join(donor_meta)
+
+    if covariate_cols:
+        cov_meta = adata.obs.groupby(donor_col)[covariate_cols].first()
+        donor_meta = donor_meta.join(cov_meta)
 
     # --- Step 4: young / old groups ---
     ages = donor_meta["age"].values
     q25, q75 = np.percentile(ages, [25, 75])
     young_mask = ages <= q25
     old_mask   = ages >= q75
+    print("Subsampling adata to Young and Old quartiles only...")
+    quartile_mask = young_mask | old_mask # samples to reatain for the analysis
+    detect_matrix = detect_matrix[quartile_mask, :] # subset to young + old samples only
+    donor_meta = donor_meta[quartile_mask] # subset to young + old samples only
+    # attention need to recompute young_mask and old_mask on the subset of samples only (otherwise they will be misaligned with the detect_matrix and donor_meta)
+    young_mask    = young_mask[quartile_mask]   # recompute on the subset
+    old_mask      = old_mask[quartile_mask]     # recompute on the subset
     print(f"  Young (≤{q25:.0f}): {young_mask.sum()}  |  Old (≥{q75:.0f}): {old_mask.sum()}")
 
     # average detection rate across young (or old) donors for each gene.
@@ -437,18 +89,25 @@ def find_depressed_genes(
 
     # NO age
     X_cov = np.column_stack([
-        np.ones(len(donor_meta)),
-        donor_meta[["mean_log_umi", "mean_log_umi2"]].values
+        np.ones(len(donor_meta)), # interecept
+        donor_meta[["mean_log_umi", "mean_log_umi2"]].values, # mean log UMI and its square
+        *(donor_meta[c].values.astype(float) for c in (covariate_cols or [])), # add all other covs
     ])
-    age_vec=donor_meta["age"].values.astype(float)
+    
+    # age vecs as binary
+    age_vec = old_mask.astype(float)   # 0 = young quartile, 1 = old quartile
+    #age_vec=donor_meta["age"].values.astype(float)
 
     perm_res = permutation_test_on_age_FWL(
                     Y=detect_cand,    # (n_genes, n_donors) detection rates, candidates only
                     X_cov=X_cov.astype(float),
                     age_vec=age_vec,
-                    n_perm = 10_000,
-                    seed   = 42,
+                    n_perm = n_perm,
+                    seed   = seed,
                 )
+    
+    # for logFC: "half a detected cell" in the downsampled pool,
+    eps = 1 / (2 * min_n)   # half a cell in the downsampled pool
 
     # --- Step 7: results ---
     results_df = pd.DataFrame({
@@ -460,6 +119,10 @@ def find_depressed_genes(
         "obs_beta":       perm_res["obs_beta"].values,
         "perm_pval":      perm_res["perm_pval"].values,
         "perm_padj":      perm_res["perm_padj"].values,
+        "logFC_detect":   np.log2(
+                        (old_detect[candidate_mask]   + eps) /
+                        (young_detect[candidate_mask] + eps)
+                    ),
     })
 
     sig_mask  = results_df["perm_padj"] < fdr_alpha
@@ -506,6 +169,7 @@ def compute_scores_and_cov(adata, gene_set, donor_col="donor_id", age_col="age",
     X_sub    = scipy.sparse.csr_matrix(adata.X[:, gene_idx])
 
     if score_method == "gene_count":
+        #fraction of gene set with count > 0
         cell_scores = np.asarray((X_sub > 0).sum(axis=1)).ravel() / len(gene_set)
 
     elif score_method == "count_ratio":
@@ -525,15 +189,14 @@ def compute_scores_and_cov(adata, gene_set, donor_col="donor_id", age_col="age",
 
     elif score_method == "ucell":
         import decoupler as dc
-        raw_X = adata.X.copy()
-        sc.pp.normalize_total(adata, target_sum=1e4)
-        sc.pp.log1p(adata)
         net = pd.DataFrame({"source": "G", "target": gene_set, "weight": 1.0})
         dc.mt.aucell(data=adata, net=net, 
-                     n_up=adata.n_vars // 100, # ATTNETION: this is a heuristic parameter that may need tuning
+                     n_up = max(100, int(adata.n_vars * 0.2)),   
+                        # 20%, min 100 genes, 
+                        # # ATTNETION: this is a heuristic parameter that may need tuning
                      layer=None, raw=False, verbose=False)
-        adata.X = raw_X
         cell_scores = adata.obsm["score_aucell"]["G"].values  
+        print(f"  UCell NaNs: {np.isnan(cell_scores).sum()} / {len(cell_scores)}")
 
     else:
         raise ValueError(f"Unknown score_method '{score_method}'. "
@@ -691,11 +354,13 @@ def polycomb_enrichment_cmh(
     n_cand    = len(results_df)
     n_sig     = is_sig.sum()
     n_pc_cand = is_pc.sum()
-    overlap   = (is_sig & is_pc).sum()
+    overlap       = (is_sig & is_pc).sum()
+    overlap_genes = results_df.loc[is_sig & is_pc, "gene"].tolist()
 
     # Edge case: no significant genes → nothing to test
     if n_sig == 0:
         return {"odds_ratio": np.nan, "pval": 1.0, "overlap": 0,
+                "overlap_genes": [],
                 "n_sig": 0, "n_pc_cands": n_pc_cand,
                 "n_candidates": n_cand, "n_strata": 0}
 
@@ -740,6 +405,7 @@ def polycomb_enrichment_cmh(
         d  = int(n_cand - a - bv - c)
         or_val, pval = fisher_exact([[a, bv], [c, d]], alternative="greater")
         return {"odds_ratio": or_val, "pval": pval, "overlap": int(overlap),
+                "overlap_genes": overlap_genes,
                 "n_sig": int(n_sig), "n_pc_cands": int(n_pc_cand),
                 "n_candidates": n_cand, "n_strata": len(tables)}
 
@@ -779,6 +445,7 @@ def polycomb_enrichment_cmh(
         "odds_ratio":   pooled_or,
         "pval":         pval_one,
         "overlap":      int(overlap),
+        "overlap_genes": overlap_genes,
         "n_sig":        int(n_sig),
         "n_pc_cands":   int(n_pc_cand),
         "n_candidates": n_cand,
