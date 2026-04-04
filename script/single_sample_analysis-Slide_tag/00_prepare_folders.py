@@ -29,9 +29,9 @@ from pathlib import Path
 # Configuration variables
 BASE_PATH = "/home/gdallagl/myworkdir/XDP/data/XDP"
 DISEASE_TYPE = "diseased" # diseased / healthy
-SAMPLE_ID = "recon_241105"
-BCL = ""
-LIBRARIES = []
+SAMPLE_ID = "sample_04"
+BCL = "260313_SL-EXA_0758_B23GHNHLT4"
+LIBRARIES = ["SI-TT-C6", "SI-TT-C7", "SI-TT-C8", "SI-TT-C9"]  # List of library names (e.g., SI-TT-B10, SI-TT-B11, SI-TT-B12)
 
 # Create base directory structure
 base_path = Path(BASE_PATH) / DISEASE_TYPE / SAMPLE_ID
@@ -58,7 +58,7 @@ if BCL != "":
         lib_path = bcl_path / library
         
         # Create subdirectories for each library
-        subdirs = ["adata", "cellbender", "map_my_cell", "slide_tags"]
+        subdirs = ["adata", "cellbender", "map_my_cell", "slide_tags", "dropsift"]
         
         for subdir in subdirs:
             subdir_path = lib_path / subdir

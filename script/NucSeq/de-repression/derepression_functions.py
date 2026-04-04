@@ -33,10 +33,7 @@ def find_depressed_genes(
     # --- Step 2: downsample donors to same number of cells ---
     min_n = cell_counts[valid_donors].min()
     print(f"  Downsampling to {min_n} cells per donor")
-
     adata_sub = adata[adata.obs.groupby(donor_col).sample(n=min_n, random_state=seed).index].copy()
-
-    #print(f"  After downsampling: {adata_sub.obs[donor_col].value_counts()} cells, {adata_sub.n_vars} genes, {adata_sub.obs[donor_col].nunique()} donors")
 
     # --- Step 3: compute per-donor detection rate --- (samples x genes)
     detect_matrix = np.zeros((len(valid_donors), adata_sub.n_vars))
@@ -45,8 +42,7 @@ def find_depressed_genes(
         cells = adata_sub[adata_sub.obs[donor_col] == d].X
         detect_matrix[j] = np.asarray((cells > 0).mean(axis=0)).ravel()
 
-    # compute donor-level metadata
-
+    # --- Step 4: compute donor-level metadata
     donor_meta = adata.obs.groupby(donor_col).agg(
         age        = (age_col, 'first'),
         mean_log_umi  = (tot_UMI_per_cell_col, lambda x: np.log(x.astype(float)).mean()),
@@ -55,11 +51,13 @@ def find_depressed_genes(
 
     donor_meta = donor_meta.loc[valid_donors] # reindex to match detect_df
 
+    # ATTENTION: all other covs are passed as firt
+        # ex sex, SNP_PCs
     if covariate_cols:
         cov_meta = adata.obs.groupby(donor_col)[covariate_cols].first()
         donor_meta = donor_meta.join(cov_meta)
 
-    # --- Step 4: young / old groups ---
+    # --- Step 4: define young / old groups ---
     ages = donor_meta["age"].values
     q25, q75 = np.percentile(ages, [25, 75])
     young_mask = ages <= q25
@@ -73,13 +71,13 @@ def find_depressed_genes(
     old_mask      = old_mask[quartile_mask]     # recompute on the subset
     print(f"  Young (≤{q25:.0f}): {young_mask.sum()}  |  Old (≥{q75:.0f}): {old_mask.sum()}")
 
-    # average detection rate across young (or old) donors for each gene.
+    # --- Step 5: average detection rate across young (or old) donors for each gene. --> (2 x genes)
     young_detect = detect_matrix[young_mask, :].mean(axis=0)
     old_detect   = detect_matrix[old_mask,   :].mean(axis=0)
 
-    # --- Step 5: candidate genes ---
+    # --- Step 5: candidate genes (the one on which reun OLS -- ie ALL aprt teh rivo, mit) ---
     exclude_mask   = np.array([bool(EXCLUDE_RE.match(g)) for g in adata.var_names])
-    candidate_mask = (young_detect <= threshold) & ~exclude_mask
+    candidate_mask = ~exclude_mask #(young_detect <= threshold) &  --> TEST ON ALL GENES, NOT JUST LOWLY DETECTED IN YOUNG
     cand_names     = adata.var_names[candidate_mask].tolist()
     detect_cand = detect_matrix[:, candidate_mask].T
     print(f"  Candidates: {len(cand_names)}")
@@ -87,16 +85,26 @@ def find_depressed_genes(
     # --- Step 6: permutation test ---
     print(f"  Running permutation test ({n_perm:,} perms)...")
 
-    # NO age
+    ### 6.1 Creatr cov matrix
+
+    # X_cov --> NO age in it
     X_cov = np.column_stack([
         np.ones(len(donor_meta)), # interecept
         donor_meta[["mean_log_umi", "mean_log_umi2"]].values, # mean log UMI and its square
         *(donor_meta[c].values.astype(float) for c in (covariate_cols or [])), # add all other covs
     ])
     
-    # age vecs as binary
+    # age vecs as BINARY
     age_vec = old_mask.astype(float)   # 0 = young quartile, 1 = old quartile
     #age_vec=donor_meta["age"].values.astype(float)
+
+    n_y, n_o = young_mask.sum(), old_mask.sum()
+    from math import comb
+    n_distinct = comb(n_y + n_o, n_o)
+    if n_distinct < n_perm:
+        print(f"WARNING: only {n_distinct} distinct permutations exist, "
+            f"but n_perm={n_perm}. Reduce n_perm to {n_distinct}.")
+        n_perm = n_distinct
 
     perm_res = permutation_test_on_age_FWL(
                     Y=detect_cand,    # (n_genes, n_donors) detection rates, candidates only
@@ -112,21 +120,29 @@ def find_depressed_genes(
     # --- Step 7: results ---
     results_df = pd.DataFrame({
         "gene":           cand_names,
-        "young_detect":   young_detect[candidate_mask],
+        "young_detect":   young_detect[candidate_mask], # mean DR rate per gene (acrosss samples)
         "old_detect":     old_detect[candidate_mask],
-        "overall_detect": detect_cand.mean(axis=1),
-        "exceeds_in_old": old_detect[candidate_mask] > threshold,
         "obs_beta":       perm_res["obs_beta"].values,
         "perm_pval":      perm_res["perm_pval"].values,
         "perm_padj":      perm_res["perm_padj"].values,
         "logFC_detect":   np.log2(
                         (old_detect[candidate_mask]   + eps) /
                         (young_detect[candidate_mask] + eps)
-                    ),
+                    ), # cgange in DR in 2 groups
     })
 
-    sig_mask  = results_df["perm_padj"] < fdr_alpha
+    # Post-hoc annotation — done AFTER statistics are locked in
+    results_df["low_in_young"]  = results_df["young_detect"] <= threshold
+
+    # Final gene list: significant β_age > 0 AND low DR in young (annotation, not selection)
+    sig_mask  = (
+        (results_df["perm_padj"] < fdr_alpha) &
+        (results_df["obs_beta"]  > 0        ) &   # one-sided: must go UP with age
+        (results_df["low_in_young"]         )      # post-hoc biological annotation
+    )
+
     gene_list = results_df.loc[sig_mask, "gene"].tolist()
+
     print(f"  Significant (padj < {fdr_alpha}): {sig_mask.sum()}  →  {len(gene_list)} genes")
 
     return gene_list, results_df, donor_meta
@@ -168,24 +184,24 @@ def compute_scores_and_cov(adata, gene_set, donor_col="donor_id", age_col="age",
     gene_idx = [i for i, g in enumerate(adata.var_names) if g in set(gene_set)]
     X_sub    = scipy.sparse.csr_matrix(adata.X[:, gene_idx])
 
-    if score_method == "gene_count":
-        #fraction of gene set with count > 0
-        cell_scores = np.asarray((X_sub > 0).sum(axis=1)).ravel() / len(gene_set)
+    # if score_method == "gene_count":
+    #     #fraction of gene set with count > 0
+    #     cell_scores = np.asarray((X_sub > 0).sum(axis=1)).ravel() / len(gene_set)
 
-    elif score_method == "count_ratio":
+    if score_method == "count_ratio":
         X_all      = scipy.sparse.csr_matrix(adata.X)
         g_counts   = np.asarray(X_sub.sum(axis=1)).ravel().astype(float)
         tot_counts = np.asarray(X_all.sum(axis=1)).ravel().astype(float)
         tot_counts[tot_counts == 0] = 1
         cell_scores = g_counts / tot_counts
 
-    elif score_method == "scanpy_score":
-        raw_X = adata.X.copy()
-        sc.pp.normalize_total(adata, target_sum=1e4)
-        sc.pp.log1p(adata)
-        sc.tl.score_genes(adata, gene_list=gene_set, score_name="_score")
-        adata.X = raw_X
-        cell_scores = adata.obs["_score"].values
+    # elif score_method == "scanpy_score":
+    #     raw_X = adata.X.copy()
+    #     sc.pp.normalize_total(adata, target_sum=1e4)
+    #     sc.pp.log1p(adata)
+    #     sc.tl.score_genes(adata, gene_list=gene_set, score_name="_score")
+    #     adata.X = raw_X
+    #     cell_scores = adata.obs["_score"].values
 
     elif score_method == "ucell":
         import decoupler as dc

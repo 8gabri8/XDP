@@ -508,6 +508,8 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
     sc.tl.leiden(adata, resolution=1.0, key_added="leiden_3", flavor="igraph", n_iterations=2)
     sc.tl.leiden(adata, resolution=2.0, key_added="leiden_4", flavor="igraph", n_iterations=2)
 
+    adata.X = adata.layers["counts"].copy()     # bring back counts to X
+
     print("Preprocessing done.")
 
 def reprocess_subset(adata, old_umap_name="", filter_genes=True):
@@ -892,24 +894,24 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
 
 def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, markers=None,
                              min_in_group_fraction=0.25, max_out_group_fraction=0.2):
+
+    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False)
     
-    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False,
-                            min_in_group_fraction=min_in_group_fraction,
-                            max_out_group_fraction=max_out_group_fraction)
-    
+    # fraction filtering is a separate step
+    sc.tl.filter_rank_genes_groups(adata, min_in_group_fraction=min_in_group_fraction,
+                                          max_out_group_fraction=max_out_group_fraction)
+
     gene_to_ct = {g: ct for ct, genes in markers.items() for g in genes} if markers else {}
-    
+
     results = {}
     for cluster in adata.obs[cluster_col].unique():
-        ranked = sc.get.rank_genes_groups_df(
-            adata, 
-            group=str(cluster),
-            pval_cutoff=0.05,
-        ).head(n_genes)
+        ranked = sc.get.rank_genes_groups_df(adata, group=str(cluster), pval_cutoff=0.05)
+        if n_genes is not None:
+            ranked = ranked.head(n_genes)
         if markers:
             ranked["cell_type"] = ranked["names"].map(gene_to_ct).fillna("")
         results[cluster] = ranked
-    
+
     return results
 
 def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds", umap_name="umap", vmin=None, vmax=None):
