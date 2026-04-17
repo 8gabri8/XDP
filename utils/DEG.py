@@ -50,7 +50,7 @@ def convert_df_to_fig(df, title):
     
     return fig  # Returns matplotlib figure
 
-def check_corr_cov_in_design(adata, vars_in_formula, corr_thr=0.7, split=" + "):
+def check_corr_cov_in_design(adata, vars_in_formula, corr_thr=0.7, split=" + ", save_path=None):
 
     def quote_var(v):
         return f'Q("{v}")' if "." in v else v
@@ -75,6 +75,8 @@ def check_corr_cov_in_design(adata, vars_in_formula, corr_thr=0.7, split=" + "):
                 center=0, vmin=-1, vmax=1, square=True)
     plt.title('Variable Correlations')
     plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)  # Save the figure
     plt.show()
 
     # VIF = How well can this covariate be predicted by the rest of the design?

@@ -12,8 +12,11 @@ import rpy2.robjects as ro
 from scipy.optimize import nnls
 from joblib import Parallel, delayed
 
-import DEG as DEG
-import preprocessing
+
+from . import preprocessing
+from . import DEG
+import re
+
 
 def calculate_pca(adata, calculate_or_project, saving_folder, variance_threshold=None, N_PCS_TO_USE=None, df_stats=None, df_loadings=None):
     
@@ -253,6 +256,7 @@ def project_cnmf_geps(adata, healthy_or_diseased, saving_folder, df_spectra, ref
         row_sums = usages.sum(axis=1, keepdims=True)
         row_sums[row_sums == 0] = 1.0
         usages = usages / row_sums
+        norm_str = "_norm" if normalize else ""
 
     K = usages.shape[1] #numne of GEPs
     # ATTNETION Drop last GEP: usages sum to 1 per cell → perfect collinearity with K covariates
@@ -260,12 +264,22 @@ def project_cnmf_geps(adata, healthy_or_diseased, saving_folder, df_spectra, ref
 
     df_out = pd.DataFrame(usages[:, :K-1], columns=gep_names)
     df_out.insert(0, "barcode", adata.obs_names.values)
-    df_out.to_csv(f"{saving_folder}/{healthy_or_diseased}_geps.csv", index=False)
+    df_out.to_csv(f"{saving_folder}/usages{norm_str}_{healthy_or_diseased}.csv", index=False)
 
     print(f"Saved {healthy_or_diseased} GEP projections: {df_out.shape[0]} cells, {len(gep_names)} GEPs")
     return df_out
 
 def filter_genes_for_nebula(adata_ct, sample_col, condition_col, min_cells_per_sample=10, min_counts=50):
+
+    """
+        ### Gene Filtering
+            1. Drop donors with < `min_cells_per_sample` cells.  
+            2. Keep genes expressed in ≥ `n_donors × min_cells_per_sample` cells.  
+            3. Keep genes with ≥ `min_counts` total counts.  
+            4. Skip analysis if:
+            - Any condition has < `MIN_SAMPLES_PER_CONDITION` donors.  
+            - Remaining genes ≤ `MIN_NUMBER_GENES_PER_ANALYSIS`.  
+    """
 
     print("ATTENTION: .X must be raw!")
 
@@ -304,13 +318,119 @@ def filter_genes_for_nebula(adata_ct, sample_col, condition_col, min_cells_per_s
 
     return adata_ct
 
+def test_factor_condition_association(
+    adata,
+    dim_red_covs,
+    CONTRAST_VARIABLE,
+    CONTRAST_BASELINE,
+    CONTRAST_STIM,
+    COVARIATES_FOR_DEG,
+    SAMPLE_VARIABLE,
+    saving_folder,       # required: both input df and results saved here
+    factor_type="PCA",  # "PCA" → lmerTest (Gaussian),  "cNMF" → glmmTMB (Beta)
+):
+    """
+    For each factor in dim_red_covs, fit:
+        factor_i ~ condition + covariates + other_factors + (1|donor)
+    PCA  → Gaussian LMM (lmerTest, Satterthwaite t-test)
+    cNMF → Beta GLMM    (glmmTMB, logit link, Wald z-test)
+    Returns DataFrame: factor | beta | se | p_value | fdr
+    """
+    if not dim_red_covs:
+        print("No factors to test — skipping.")
+        return None
+
+    # 1. Save input dataframe permanently (reusable for inspection/reanalysis)
+    cols       = [CONTRAST_VARIABLE, SAMPLE_VARIABLE, *COVARIATES_FOR_DEG, *dim_red_covs]
+    df         = adata.obs[cols].dropna().copy()
+    input_csv  = f"{saving_folder}/cov_df_for_factor_significant.csv"
+    df.to_csv(input_csv)
+
+    result_csv = f"{saving_folder}/factor_significant_results.csv"
+
+    # 2. R formula components
+    base_covs_r = ', '.join([f'"{CONTRAST_VARIABLE}"', *[f'"{c}"' for c in COVARIATES_FOR_DEG]])
+    factors_r   = ', '.join([f'"{f}"' for f in dim_red_covs])
+    cond_row    = f'{CONTRAST_VARIABLE}{CONTRAST_STIM}'  # e.g. "conditionXDP"
+
+    # 3. Model-specific R code (library, preprocessing, fit call, coef extraction)
+    if factor_type == "cNMF":
+        lib       = 'library(glmmTMB)'
+        preproc   = 'df[factors] <- lapply(df[factors], function(x) pmin(pmax(x, 1e-6), 1-1e-6))'  # Beta needs strictly (0,1)
+        fit_call  = 'glmmTMB(as.formula(f), data=df, family=beta_family(link="logit"))'
+        get_coefs = 'summary(fit)$coefficients$cond'  # glmmTMB nests fixed effects under $cond
+        p_col     = '"Pr(>|z|)"'
+    elif factor_type == "PCA":
+        lib       = 'library(lme4); library(lmerTest)'
+        preproc   = ''
+        fit_call  = 'lmer(as.formula(f), data=df, REML=TRUE)'
+        get_coefs = 'summary(fit)$coefficients'
+        p_col     = '"Pr(>|t|)"'
+
+    # 4. Fit models in R
+    ##
+    ## to isntall firs time: 
+    #               install.packages("glmmTMB", repos="https://cloud.r-project.org")
+    #               install.packages("lmerTest", repos="https://cloud.r-project.org")
+    ##
+    ro.r(f'''
+        suppressPackageStartupMessages({{ {lib} }})
+
+        # Read data: R automatically handles character columns as factors in model formulas
+        df <- read.csv("{input_csv}", row.names=1)
+        # Only explicit encoding needed: set reference level so XDP is tested vs Control
+        df${CONTRAST_VARIABLE} <- relevel(factor(df${CONTRAST_VARIABLE}), ref="{CONTRAST_BASELINE}")
+
+        base_covs <- c({base_covs_r})
+        factors   <- c({factors_r})
+        {preproc}
+        results   <- list()
+
+        # Print type of each column to verify encoding
+        for (col in colnames(df)) {{
+            message(col, ": ", class(df[[col]]), " | example: ", df[[col]][1])
+        }}
+
+        for (factor_i in factors) {{
+            others <- setdiff(factors, factor_i) # remaining factors
+            f      <- paste(factor_i, "~", paste(c(base_covs, others, "(1|{SAMPLE_VARIABLE})"), collapse=" + "))
+            message("\\nFitting: ", f)
+
+            fit <- tryCatch({fit_call}, error=function(e) {{ message("ERROR: ", e$message); NULL }})
+            if (is.null(fit)) {{
+                results[[factor_i]] <- data.frame(factor=factor_i, beta=NA, se=NA, p_value=NA)
+                next
+            }}
+
+            tbl <- {get_coefs}
+            if ("{cond_row}" %in% rownames(tbl)) {{
+                r <- tbl["{cond_row}", ]
+                results[[factor_i]] <- data.frame(factor=factor_i, beta=r[["Estimate"]], se=r[["Std. Error"]], p_value=r[[{p_col}]])
+            }} else {{
+                results[[factor_i]] <- data.frame(factor=factor_i, beta=NA, se=NA, p_value=NA)
+            }}
+        }}
+
+        df_out     <- do.call(rbind, results)
+        # Adjsut p-value as you test more factors
+        df_out$fdr <- p.adjust(df_out$p_value, method="BH")
+        write.csv(df_out[order(df_out$p_value), ], "{result_csv}", row.names=FALSE)
+    ''')
+
+    # 5. Return results
+    df_results = pd.read_csv(result_csv)
+    print(df_results.to_string(index=False))
+    return df_results
+
 def run_nebula_with_factors(
     adata,  
     ADATA_PATH_QS, SAVE_HEALTHY_PCA_RESULT, PARALLEL_NEBULA_SCRIPT_PATH,
     CONTRAST_VARIABLE,CONTRAST_BASELINE, CONTRAST_STIM,
     SAMPLE_VARIABLE,LIBRARY_SIZE_COL,COVARIATES_FOR_DEG,
     N_PCS_TO_USE=None, variance_threshold=None, delete_tmp_files=True,TYPE_DEG=None,
-    MIN_SAMPLES_PER_CONDITION=4,     MIN_NUMBER_GENES_PER_ANALYSIS = 3000, CNMF_SPECTRA_PATH=None
+    MIN_SAMPLES_PER_CONDITION=4,     MIN_NUMBER_GENES_PER_ANALYSIS = 3000,
+    CNMF_SPECTRA_PATH=None,
+    cnmf_sig_fdr_threshold=0.05
 ):
     ###################
     # Filter low quality genes
@@ -360,7 +480,7 @@ def run_nebula_with_factors(
 
     adata_healthy.X = adata_healthy.layers["counts"].copy()
 
-    if (TYPE_DEG == "PCA_nebula") | (TYPE_DEG == "baseline_nebula"):
+    if (TYPE_DEG == "PCA_nebula"):
         results_healthy = calculate_pca(
             adata=adata_healthy,
             calculate_or_project="calculate",
@@ -368,27 +488,40 @@ def run_nebula_with_factors(
             N_PCS_TO_USE=N_PCS_TO_USE,
             saving_folder=SAVE_HEALTHY_PCA_RESULT, 
         )
+
+        df_stats_healthy_pca = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_stats.csv", index_col=0)
+        df_loadings_healthy_pca = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/gene_loadings.csv", index_col=0)
+
     elif (TYPE_DEG == "cNMF_nebula"):
         # Save h5ad to run cNF on AUGER
-        if not os.path.exists(CNMF_SPECTRA_PATH):
-            adata_healthy = adata[adata.obs[CONTRAST_VARIABLE] == CONTRAST_BASELINE].to_memory().copy()
+        if CNMF_SPECTRA_PATH is None or not os.path.exists(CNMF_SPECTRA_PATH):
+            # ATTENTION: cNMF needs float64
             adata_healthy.X = adata_healthy.layers["counts"].astype(np.float64).copy()
             adata_healthy.write_h5ad(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_cNMF.h5ad")
             print(f"Saved healthy h5ad. Run cNMF on remote server, then re-run.")
             print("NOW RUN cNMF on AUGER using this h5ad, then save the resulting GEP loadings and scores in the same folder, and re-run this function to continue with projection/merging/nebula steps.")
             return None
         
-        # if cnmf files ecists --> project H and D
+        print(f"Found existing cNMF spectra at {CNMF_SPECTRA_PATH}, skipping cNMF training and proceeding to projection step.")
         df_spectra = pd.read_csv(CNMF_SPECTRA_PATH, sep="\t", index_col=0)
         reference_hvg = df_spectra.columns.tolist()
-        gene_stds = np.load(CNMF_SPECTRA_PATH.replace("spectra", "gene_stds").replace(".txt", ".npy"))  # adjust path as needed
 
-        adata_healthy = adata[adata.obs[CONTRAST_VARIABLE] == CONTRAST_BASELINE].to_memory().copy()
-        adata_healthy.X = adata_healthy.layers["counts"].copy()
+        # Some spectra genes may be absent in this adata (e.g. zone subset filtered them out)
+            # eg when subsetting to zone, we are suign smae facotrization of the full cell type, but some genes may be filtered out in the zone subset, so we need to filter the spectra genes to the ones that are present in the adata
+        available_hvg = [g for g in reference_hvg if g in adata.var_names]
+        if len(available_hvg) < len(reference_hvg):
+            n_missing = len(reference_hvg) - len(available_hvg)
+            print(f"WARNING: {n_missing}/{len(reference_hvg)} spectra genes not in adata (filtered). Using {len(available_hvg)} genes.")
+            df_spectra = df_spectra[available_hvg]
+            reference_hvg = available_hvg
+
+        # Need to calcualte H gene STD
+        # Compute gene stds from healthy raw counts subset to cNMF HVGs (ddof=0, population std)
+        X_healthy_hvg = adata_healthy[:, reference_hvg].X
+        X_healthy_hvg = X_healthy_hvg.toarray() if hasattr(X_healthy_hvg, 'toarray') else X_healthy_hvg
+        gene_stds = X_healthy_hvg.std(axis=0)
+
         df_healthy = project_cnmf_geps(adata_healthy, "healthy", SAVE_HEALTHY_PCA_RESULT, df_spectra, reference_hvg, gene_stds)
-
-    df_stats_healthy = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_stats.csv", index_col=0)
-    df_loadings_healthy = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/gene_loadings.csv", index_col=0)
 
     ###################
     # Calculate Factors for Diseased
@@ -400,13 +533,14 @@ def run_nebula_with_factors(
 
     adata_diseased.X = adata_diseased.layers["counts"].copy()
 
-    if (TYPE_DEG == "PCA_nebula") | (TYPE_DEG == "baseline_nebula"):
+    # claculte PCA aslso for baseline nebula to not chnage the code (the PCs will not be used in modle fitting)
+    if (TYPE_DEG == "PCA_nebula"):
         results = calculate_pca(
             adata=adata_diseased,
             calculate_or_project="project",
             saving_folder=SAVE_HEALTHY_PCA_RESULT, 
-            df_loadings=df_loadings_healthy,
-            df_stats=df_stats_healthy
+            df_loadings=df_loadings_healthy_pca,
+            df_stats=df_stats_healthy_pca
         )
     elif (TYPE_DEG == "cNMF_nebula"):
         df_diseased = project_cnmf_geps(adata_diseased, "diseased", SAVE_HEALTHY_PCA_RESULT, df_spectra, reference_hvg, gene_stds)
@@ -415,12 +549,20 @@ def run_nebula_with_factors(
     # Merge
     ###################
 
-    # Merge with Healthy (alredy claculted --> SAME for all)    
-    df_pcs_healthy = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_pcs.csv")
-    df_pcs_diseased = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/diseased_pcs.csv")
+    if TYPE_DEG == "PCA_nebula":
+        df_h = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_pcs.csv")
+        df_d = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/diseased_pcs.csv")
+        df_all = pd.concat([df_h, df_d], axis=0)
+        df_all.to_csv(f"{SAVE_HEALTHY_PCA_RESULT}/pcs_all.csv", index=False)
+        dim_red_covs = [c for c in df_all.columns if c.startswith("PC_")]
+    elif TYPE_DEG == "cNMF_nebula":
+        df_all = pd.concat([df_healthy, df_diseased], axis=0)  # already in memory
+        df_all.to_csv(f"{SAVE_HEALTHY_PCA_RESULT}/usages_all.csv", index=False)
+        dim_red_covs = [c for c in df_all.columns if c.startswith("GEP_")]
+    else:
+        df_all = None
+        dim_red_covs = [] if TYPE_DEG == "baseline_nebula" else ["gradient_score"]
 
-    df_all = pd.concat([df_pcs_healthy, df_pcs_diseased], axis=0)
-    df_all.to_csv(f"{SAVE_HEALTHY_PCA_RESULT}/pcs_all.csv", index=False)
 
     ###################
     # Save h5ad with these PCs
@@ -428,25 +570,25 @@ def run_nebula_with_factors(
 
     print("Saving h5ad file...")
 
-    pcs = [c for c in df_all.columns if c.startswith("PC_")]
-    for pc in pcs:
+    for pc in dim_red_covs:
         if pc in adata.obs.columns.tolist():
             adata.obs = adata.obs.drop(columns=[pc])
     if "barcode" in adata.obs.columns:
         adata.obs = adata.obs.drop(columns=["barcode"])
-    adata.obs = adata.obs.merge(df_all, how="left", left_index=True, right_on="barcode", validate="one_to_one")
-    adata.obs.index = adata.obs["barcode"]  # restore original index
-    adata.obs = adata.obs.drop(columns=["barcode"])
+    if df_all is not None: # baseline, gradient score not have df_all
+        adata.obs = adata.obs.merge(df_all, how="left", left_index=True, right_on="barcode", validate="one_to_one")
+        adata.obs.index = adata.obs["barcode"]  # restore original index
+        adata.obs = adata.obs.drop(columns=["barcode"])
 
     # Sanity checks before saving
     assert adata.obs.shape[0] == adata.X.shape[0], \
         f"obs rows ({adata.obs.shape[0]}) != X rows ({adata.X.shape[0]})"
     assert adata.obs.index.equals(pd.Index(adata.obs_names)), "Index mismatch after merge"
-    assert not adata.obs[pcs].isna().any().any(), "Some cells missing PC values after merge"
+    assert not adata.obs[dim_red_covs].isna().any().any(), "Some cells missing PC values after merge"
     assert adata.obs_names.is_unique, "Duplicate barcodes after merge"
     print(f"adata intact: {adata.shape[0]} cells, {adata.shape[1]} genes")
 
-    covs = [CONTRAST_VARIABLE, *COVARIATES_FOR_DEG, *pcs]
+    covs = [CONTRAST_VARIABLE, *COVARIATES_FOR_DEG, *dim_red_covs]
     # ATTENTION: interaction term is not a real col, so do the ehck only on asubset of col
     covs_for_nan_check = [c for c in covs if ":" not in c and "*" not in c]
     mask = adata.obs[covs_for_nan_check].isna().any(axis=1)
@@ -456,7 +598,36 @@ def run_nebula_with_factors(
     ADATA_PATH_H5AD = f"{os.path.splitext(ADATA_PATH_QS)[0]}.h5ad"
     adata.write_h5ad(ADATA_PATH_H5AD)
 
-    DEG.check_corr_cov_in_design(adata, vars_in_formula = [CONTRAST_VARIABLE, *COVARIATES_FOR_DEG, *pcs, LIBRARY_SIZE_COL], corr_thr=0.7, split=" + ")
+    ###################
+    # Investigate Facotrs
+    ###################
+
+    # Correlatio matrix
+    save_corr_path = f"{SAVE_HEALTHY_PCA_RESULT}/covariate_correlation_matrix.png"
+    DEG.check_corr_cov_in_design(adata, vars_in_formula = [CONTRAST_VARIABLE, *COVARIATES_FOR_DEG, *dim_red_covs, LIBRARY_SIZE_COL], corr_thr=0.7, split=" + ", save_path=save_corr_path)
+
+    # Test significant association with condition
+    # Factor ~ condition association test (linear mixed model per factor)
+    if dim_red_covs:
+        df_factor_results =test_factor_condition_association(
+            adata,
+            dim_red_covs=dim_red_covs,
+            CONTRAST_VARIABLE=CONTRAST_VARIABLE,
+            CONTRAST_BASELINE=CONTRAST_BASELINE,
+            CONTRAST_STIM=CONTRAST_STIM,
+            COVARIATES_FOR_DEG=COVARIATES_FOR_DEG,
+            SAMPLE_VARIABLE=SAMPLE_VARIABLE,
+            factor_type="cNMF" if TYPE_DEG == "cNMF_nebula" else "PCA",
+            saving_folder=SAVE_HEALTHY_PCA_RESULT
+        )
+
+        # For cNMF: keep only GEPs significantly associated with condition
+        if (TYPE_DEG == "cNMF_nebula") and (df_factor_results is not None):
+            sig_geps = df_factor_results.loc[
+                df_factor_results["fdr"] < cnmf_sig_fdr_threshold, "factor"
+            ].tolist()
+            print(f"Significant GEPs (FDR<{cnmf_sig_fdr_threshold}): {sig_geps}")
+            dim_red_covs = sig_geps  # override — Nebula will only use these
 
     ###################
     # Create qs file
@@ -478,25 +649,13 @@ def run_nebula_with_factors(
 
     print("Running Nebula...")
 
-    if TYPE_DEG == "PCA_nebula":
-        # all the PCA calculate/project/merge/save h5ad code stays here
-        pcs = [c for c in df_all.columns if c.startswith("PC_")]
-    elif TYPE_DEG == "baseline_nebula":
-        pcs = []  # no PCs as covariates
-    elif TYPE_DEG == "gradient_score_nebula":
-        pcs = ["gradient_score"]  # use gradient score as covariate
-    elif TYPE_DEG == "cNMF_nebula":
-        pcs = [c for c in df_all.columns if c.startswith("GEP_")]  # use cNMF gene expression programs as covariates
-    else:
-        raise ValueError(f"Unknown TYPE_DEG: {TYPE_DEG}")
-
     # Define PCs cov
     # Run Nebula
     nebula_result_path = DEG.run_nebula_parallel_script(
         path_qs = ADATA_PATH_QS,
         path_nebula_script = PARALLEL_NEBULA_SCRIPT_PATH,
         id_col = SAMPLE_VARIABLE,
-        covs = [CONTRAST_VARIABLE, *COVARIATES_FOR_DEG, *pcs], # wihtout LIBRARY_SIZE_COL, with constrst vaibale too
+        covs = [CONTRAST_VARIABLE, *COVARIATES_FOR_DEG, *dim_red_covs], # wihtout LIBRARY_SIZE_COL, with constrst vaibale too
         offset_col = LIBRARY_SIZE_COL,
         n_folds = 40, # (MORE gene chunks = LESS RAM per chunk)
         n_cores = 40, # (FEWER parallel jobs = LESS total RAM)
@@ -521,3 +680,5 @@ def run_nebula_with_factors(
         os.remove(ADATA_PATH_H5AD)
         os.remove(ADATA_PATH_QS)
         shutil.rmtree(f"{SAVE_HEALTHY_PCA_RESULT}/de_results")
+
+
