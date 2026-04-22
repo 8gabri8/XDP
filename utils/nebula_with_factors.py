@@ -355,11 +355,21 @@ def test_factor_condition_association(
 
     # 3. Model-specific R code (library, preprocessing, fit call, coef extraction)
     if factor_type == "cNMF":
-        lib       = 'library(glmmTMB)'
-        preproc   = 'df[factors] <- lapply(df[factors], function(x) pmin(pmax(x, 1e-6), 1-1e-6))'  # Beta needs strictly (0,1)
-        fit_call  = 'glmmTMB(as.formula(f), data=df, family=beta_family(link="logit"))'
-        get_coefs = 'summary(fit)$coefficients$cond'  # glmmTMB nests fixed effects under $cond
-        p_col     = '"Pr(>|z|)"'
+        print("ATTENTION: using lmerTest (Gaussian LMM) --> not totally statistically correct (but still robust) \n\t\t ZIBR coudl be better")
+        lib       = 'library(lme4); library(lmerTest)'
+        preproc   = ''
+        fit_call  = 'lmer(as.formula(f), data=df, REML=TRUE)'
+        get_coefs = 'summary(fit)$coefficients'
+        p_col     = '"Pr(>|t|)"'
+
+        # # ZIBR
+        # lib       = 'library(glmmTMB)'
+        # preproc   = 'df[factors] <- lapply(df[factors], function(x) pmin(x, 1-1e-6))'  # only clamp upper bound; zeros handled by ziformula
+        # fit_call  = 'glmmTMB(as.formula(f), data=df, family=beta_family(link="logit"), 
+        #              ziformula=~1)' # model zero-inflation explicitly
+        # get_coefs = 'summary(fit)$coefficients$cond'
+        # p_col     = '"Pr(>|z|)"'
+
     elif factor_type == "PCA":
         lib       = 'library(lme4); library(lmerTest)'
         preproc   = ''
