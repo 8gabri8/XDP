@@ -35,7 +35,7 @@ def set_global_seeds(seed):
         pass
 
 
-def preprocess_common_pipeline(adata, umap_name="", leiden_name="", resolutions=[0.1, 0.5, 0.07], integrate_with_harmony=False, integrate_with_scvi=False, batch_key=None, categorical_covariate_keys=None):
+def preprocess_common_pipeline(adata, umap_name="", leiden_name="", resolutions=[0.1, 0.5, 0.07], integrate_with_harmony=False, batch_key=None):
 
     SEED =42
     set_global_seeds(SEED)
@@ -56,40 +56,51 @@ def preprocess_common_pipeline(adata, umap_name="", leiden_name="", resolutions=
         sc.pp.highly_variable_genes(adata, n_top_genes=3000, flavor="seurat_v3", 
                                      layer="counts", batch_key=None)
 
-    if integrate_with_scvi:
-        import scvi
-        # Train scVI
-        adata_hvg = adata[:, adata.var.highly_variable].copy()  # temp copy, HVG only
-        scvi.model.SCVI.setup_anndata(adata_hvg, layer="counts", batch_key=batch_key, categorical_covariate_keys=categorical_covariate_keys)
-        model = scvi.model.SCVI(adata_hvg, n_layers=2, n_latent=30)
-        model.train(batch_size=512, max_epochs=50)# datasplitter_kwargs={'num_workers': 16})
+    # Subset to HVGs before scale/PCA 
+    print("Subsetting to copy with only HVG...")
+    adata_hvg = adata[:, adata.var["highly_variable"]].copy()
+    print("Scaling ...")
+    sc.pp.scale(adata_hvg, max_value=10)
 
-        loss_key = "elbo_train" if "elbo_train" in model.history else "train_loss_epoch"
-        plt.plot(model.history[loss_key]); plt.xlabel("Epoch"); plt.ylabel("Loss"); plt.show()
+    if integrate_with_harmony:
 
-        adata.obsm["X_scvi"] = model.get_latent_representation()
-        sc.pp.neighbors(adata, use_rep="X_scvi", random_state=SEED)
-        sc.tl.umap(adata, key_added=f"umap{umap_name}", random_state=SEED)
-
-    elif integrate_with_harmony:
         print("Running Harmony...")
         import harmonypy
         if batch_key is None:
             raise ValueError("batch_key must be provided for Harmony integration.")
-        sc.pp.scale(adata, max_value=10)
-        sc.tl.pca(adata, svd_solver='arpack', n_comps=50, random_state=SEED)
-        # Run Harmony on the PCA embedding
+        
+        print("Running PCA before Harmony...")
+        sc.tl.pca(adata_hvg, svd_solver='randomized', n_comps=50, random_state=SEED) 
+        # save in orignl adata
+        adata.obsm["X_pca"] = adata_hvg.obsm["X_pca"]
+        adata.uns["pca"] = adata_hvg.uns["pca"]
+
+        # reun harmony
+        print("Running Harmony batch correction...")
         ho = harmonypy.run_harmony(adata.obsm["X_pca"], adata.obs, vars_use=batch_key, max_iter_harmony=30)
-        adata.obsm["X_pca_harmony"] = ho.Z_corr
+        Z = ho.Z_corr
+        print(f"Z_corr shape: {ho.Z_corr.shape}, n_obs: {adata.n_obs}")  
+        adata.obsm["X_pca_harmony"] = Z.T if Z.shape[0] != adata.n_obs else Z
+
+        # neihgbors on harmny
+        print("Computing neighbors on Harmony-corrected PCA...")
         sc.pp.neighbors(adata, use_rep="X_pca_harmony", n_pcs=30, random_state=SEED)
-        sc.tl.umap(adata, key_added=f"umap{umap_name}", random_state=SEED)
         
     else:
-        sc.pp.scale(adata, max_value=10) #z-score normalization
-        sc.tl.pca(adata, svd_solver='arpack', n_comps=50, random_state=SEED)
-        sc.pp.neighbors(adata, use_rep='X_pca', n_pcs=30, random_state=SEED) # from X_pca
-        sc.tl.umap(adata, key_added=f"umap{umap_name}", random_state=SEED) # uese neighbors
+        sc.tl.pca(adata_hvg, svd_solver='randomized', n_comps=50, random_state=SEED)
+        adata.obsm["X_pca"] = adata_hvg.obsm["X_pca"]
+        adata.uns["pca"] = adata_hvg.uns["pca"]
 
+        sc.pp.neighbors(adata, use_rep='X_pca', n_pcs=30, random_state=SEED)
+    
+    del adata_hvg
+
+    print("Computing UMAP...")
+    sc.tl.umap(adata, random_state=SEED)
+    if umap_name:
+        adata.obsm[f"X_umap{umap_name}"] = adata.obsm["X_umap"].copy()
+
+    print("Computing Leiden clusters...")
     for r in resolutions:
         sc.tl.leiden(adata, resolution=r, key_added=f"leiden_{r}{leiden_name}", flavor="igraph", n_iterations=2, random_state=SEED) # use neighbors
     leiden_cluster_names = [f"leiden_{r}{leiden_name}" for r in resolutions]

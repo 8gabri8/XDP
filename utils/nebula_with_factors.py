@@ -363,6 +363,7 @@ def test_factor_condition_association(
         p_col     = '"Pr(>|t|)"'
 
         # # ZIBR
+        # # GEP usages are L1-normalized per cell (they sum to 1), so they live in [0, 1] with many exact zeros.
         # lib       = 'library(glmmTMB)'
         # preproc   = 'df[factors] <- lapply(df[factors], function(x) pmin(x, 1-1e-6))'  # only clamp upper bound; zeros handled by ziformula
         # fit_call  = 'glmmTMB(as.formula(f), data=df, family=beta_family(link="logit"), 
@@ -403,7 +404,9 @@ def test_factor_condition_association(
 
         for (factor_i in factors) {{
             others <- setdiff(factors, factor_i) # remaining factors
-            f      <- paste(factor_i, "~", paste(c(base_covs, others, "(1|{SAMPLE_VARIABLE})"), collapse=" + "))
+
+            # ATTNETION: do not invlude other factors as covariates, to avoid collinearity isisses
+            f      <- paste(factor_i, "~", paste(c(base_covs, "(1|{SAMPLE_VARIABLE})"), collapse=" + "))
             message("\\nFitting: ", f)
 
             fit <- tryCatch({fit_call}, error=function(e) {{ message("ERROR: ", e$message); NULL }})

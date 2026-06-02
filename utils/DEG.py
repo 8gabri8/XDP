@@ -797,7 +797,9 @@ def fdrtool_empirical_null(stats, statistic="normal", cut_off_method="fndr", cut
 def plot_vulcano(df, logfc_col, pval_col, gene_col,
                   categories=None,
                   pval_thresh=0.05, logfc_thresh=0.5,
-                  to_label=10, figsize=(10, 8), max_y=None, ax=None, print_labels=True):
+                  to_label=10, figsize=(10, 8), max_y=None, ax=None, print_labels=True,
+                  color_by=None, cmap='viridis', vmin=None, vmax=None, vcenter=None
+                  ):
     """
     Simple volcano plot with category coloring.
     
@@ -867,8 +869,23 @@ def plot_vulcano(df, logfc_col, pval_col, gene_col,
     # Plot 'Other' first (gray background)
     other_mask = df['category'] == 'Other'
     if other_mask.any():
-        ax.scatter(df.loc[other_mask, logfc_col], df.loc[other_mask, '-log10p'],
-                   c='lightgray', alpha=0.5, s=20, label='Other', zorder=1, edgecolors='none')
+        if color_by is None:
+            ax.scatter(df.loc[other_mask, logfc_col], df.loc[other_mask, '-log10p'],
+                       c='lightgray', alpha=0.5, s=20, label='Other',
+                       zorder=1, edgecolors='none')
+        else:
+            if vcenter is not None:
+                from matplotlib.colors import TwoSlopeNorm
+                norm = TwoSlopeNorm(vmin=vmin, vcenter=vcenter, vmax=vmax)
+                sc = ax.scatter(df.loc[other_mask, logfc_col], df.loc[other_mask, '-log10p'],
+                                c=df.loc[other_mask, color_by], cmap=cmap, norm=norm,
+                                alpha=0.7, s=20, zorder=1, edgecolors='none')
+            else:
+                sc = ax.scatter(df.loc[other_mask, logfc_col], df.loc[other_mask, '-log10p'],
+                                c=df.loc[other_mask, color_by], cmap=cmap,
+                                vmin=vmin, vmax=vmax,
+                                alpha=0.7, s=20, zorder=1, edgecolors='none')
+            plt.colorbar(sc, ax=ax, label=color_by, shrink=0.6)
 
     # Plot each category
     for cat in df['category'].unique():

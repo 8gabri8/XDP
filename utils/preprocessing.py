@@ -479,19 +479,18 @@ def preprocess(adata, n_pcs_elbow=30, n_hvg=3000, hvg_batch_key=None, hvg_layer=
         sc.pl.highly_variable_genes(adata, show=True)
             # BAD: nif there is not clear seapration
 
-    # scale
-        # ATTENTION: now X stores nroalised counts --> not used for all stat test alter
+    # As scaling require lot of memeory, just run it on hvg
+    print("Subsetting to HVG and createing adata copy...")
+    adata_hvg = adata[:, adata.var["highly_variable"]].copy()  # small matrix copy
     print("Scaling...")
-    sc.pp.scale(adata, max_value=10) #z-score normalization
-
-    if save_scaled:
-        adata.layers["scaled"] = adata.X.copy()
-
-    # PCA
+    sc.pp.scale(adata_hvg, max_value=10)                        #z-score normalization
     print("Calculating PCA...")
-    sc.tl.pca(adata, svd_solver='arpack', n_comps=80) # ATTENTION: # Uses HVGs only (if calculted, even if the adat has all geens)
+    sc.tl.pca(adata_hvg, svd_solver='randomized', n_comps=80)  # sparse-safe solver
     if verbose:
-        sc.pl.pca_variance_ratio(adata, log=True, n_pcs=80, show=True)
+        sc.pl.pca_variance_ratio(adata_hvg, log=True, n_pcs=80, show=True)
+    adata.obsm["X_pca"] = adata_hvg.obsm["X_pca"]              # copy back just the PCA coords
+    adata.uns["pca"] = adata_hvg.uns["pca"]
+    del adata_hvg
 
     # neighbours (for umap and leiden)
     print("Calculating neighbors...")
@@ -893,9 +892,9 @@ def simple_wilcoxon_on_leiden(adata, leiden_col="leiden_1", leiden_cluster="0", 
 
 
 def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, markers=None,
-                             min_in_group_fraction=0.25, max_out_group_fraction=0.2):
+                             min_in_group_fraction=0.25, max_out_group_fraction=0.2, groups="all"):
 
-    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False)
+    sc.tl.rank_genes_groups(adata, groupby=cluster_col, layer=layer, method="wilcoxon", use_raw=False, groups=groups)
     
     # fraction filtering is a separate step
     sc.tl.filter_rank_genes_groups(adata, min_in_group_fraction=min_in_group_fraction,
@@ -903,8 +902,14 @@ def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, 
 
     gene_to_ct = {g: ct for ct, genes in markers.items() for g in genes} if markers else {}
 
+    # only iterate over clusters that were actually computed
+    if groups == "all":
+        clusters_to_run = adata.obs[cluster_col].unique()
+    else:
+        clusters_to_run = groups  # already a list
+
     results = {}
-    for cluster in adata.obs[cluster_col].unique():
+    for cluster in clusters_to_run:
         ranked = sc.get.rank_genes_groups_df(adata, group=str(cluster), pval_cutoff=0.05)
         if n_genes is not None:
             ranked = ranked.head(n_genes)

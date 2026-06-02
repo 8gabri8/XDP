@@ -3,8 +3,8 @@ from pathlib import Path
 
 """
     **Example output structure:**
-    diseased/
-    └── sample_001/
+    SlideTags_single_libraries/
+    └── sample_01/
         ├── images/
         ├── seurat_export/
         ├── notebooks/
@@ -28,13 +28,12 @@ from pathlib import Path
 
 # Configuration variables
 BASE_PATH = "/home/gdallagl/myworkdir/XDP/data/XDP"
-DISEASE_TYPE = "diseased" # diseased / healthy
-SAMPLE_ID = "sample_04"
-BCL = "260313_SL-EXA_0758_B23GHNHLT4"
-LIBRARIES = ["SI-TT-C6", "SI-TT-C7", "SI-TT-C8", "SI-TT-C9"]  # List of library names (e.g., SI-TT-B10, SI-TT-B11, SI-TT-B12)
+SAMPLE_ID = "sample_09"
+BCL = "240911_SL-EXD_0362_A22FLV2LT4"
+LIBRARIES = ["SI-TT-E1", "SI-TT-E2", "SI-TT-E3", "SI-TT-E4", "SI-TT-E5", "SI-TT-E6", "SI-TT-E7", "SI-TT-E8"]  # List of library names (e.g., SI-TT-B10, SI-TT-B11, SI-TT-B12)
 
 # Create base directory structure
-base_path = Path(BASE_PATH) / DISEASE_TYPE / SAMPLE_ID
+base_path = Path(BASE_PATH) / "SlideTags_single_libraries" / SAMPLE_ID
 
 # Create top-level directories
 directories = [
