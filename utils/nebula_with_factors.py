@@ -642,6 +642,46 @@ def run_nebula_with_factors(
             print(f"Significant GEPs (FDR<{cnmf_sig_fdr_threshold}): {sig_geps}")
             dim_red_covs = sig_geps  # override — Nebula will only use these
 
+    #### ATT
+
+    # import patsy
+
+    # def _drop_correlated_factors(adata, factors, fixed_covs, corr_thr=0.5):
+    #     """Drop factors with |corr| > corr_thr with any fixed covariate column."""
+    #     simple_covs = [c for c in fixed_covs if ":" not in c and "*" not in c]
+    #     df = patsy.dmatrix(
+    #         "~ " + " + ".join(simple_covs + factors),
+    #         adata.obs, return_type="dataframe"
+    #     )
+    #     corr = df.corr().abs()
+    #     fixed_dm = [c for c in df.columns if c != "Intercept" and c not in factors]
+    #     keep = []
+    #     for f in factors:
+    #         if f not in df.columns:
+    #             keep.append(f)
+    #             continue
+    #         max_corr = corr.loc[f, fixed_dm].max()
+    #         if max_corr < corr_thr:
+    #             keep.append(f)
+    #         else:
+    #             top = corr.loc[f, fixed_dm].idxmax()
+    #             print(f"  Dropping {f}: |corr|={max_corr:.2f} with '{top}'")
+    #     print(f"Kept {len(keep)}/{len(factors)} factors after corr filter (thr={corr_thr})")
+    #     return keep
+
+    # # 1. Select non-significant factors
+    # NON_sig_geps = df_factor_results.loc[
+    #     df_factor_results["fdr"] >= 0.05, "factor"
+    # ].tolist()
+    # print(f"Non-significant factors (FDR>=0.05): {NON_sig_geps}")
+    # dim_red_covs = NON_sig_geps
+
+    # # 2. Then drop those redundant with existing covariates
+    # if dim_red_covs:
+    #     dim_red_covs = _drop_correlated_factors(adata, dim_red_covs, COVARIATES_FOR_DEG)
+
+    #############################à
+
     ###################
     # Create qs file
     ###################

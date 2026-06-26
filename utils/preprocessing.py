@@ -119,6 +119,8 @@ def read_qs_save_files(qs_path, PATH_BASE, assay="RNA"):
     # works for both Seurat v4 and v5
     if (inherits(sobj[["{assay}"]], "Assay5")) {{
         cat("Detected Seurat v5 assay\\n")
+        # v5 stores per-sample split layers (counts.s5, counts.s12, ...); join before extracting
+        sobj <- JoinLayers(sobj, assay="{assay}")
         mtx <- LayerData(sobj, assay="{assay}", layer="counts")
     }} else {{
         cat("Detected Seurat v4 assay\\n")
@@ -150,10 +152,16 @@ def build_h5ad_from_files(PATH_BASE, saving_path):
         if metadata[col].dtype == object:
             metadata[col] = metadata[col].astype(str)
 
+    # align metadata positionally (barcodes and metadata rows come from the same
+    # Seurat object so order is guaranteed) — avoids reindex failures on duplicate labels
+    metadata.index = barcodes
+
     adata           = ad.AnnData(X=X)
     adata.obs_names = barcodes
     adata.var_names = genes
-    adata.obs       = metadata.reindex(adata.obs_names)
+    adata.obs_names_make_unique()
+    metadata.index  = adata.obs_names   # keep index in sync after uniquification
+    adata.obs       = metadata
 
     adata.X = adata.X.astype(np.int32)
     adata.write_h5ad(saving_path)

@@ -94,6 +94,7 @@ def check_corr_cov_in_design(adata, vars_in_formula, corr_thr=0.7, split=" + ", 
     # True → Perfect collinearity
     print("\nbinary identifiability test.", np.linalg.matrix_rank(df) < df.shape[1])
 
+
 def pseudobulk(adata, SAMPLE_VARIABLE, COV_FOR_PSEUDOBULK, GROUP_DEG_COL, COVARIATES_FOR_DEG, layer="counts", INTERESTING_COV=[], CONTRAST_VARIABLE=None, 
                MIN_CELLS_PER_PSUDOCELL=10,MIN_COUNTS_PER_PSEUDOCELL=1000, filter_genes=False,
                MIN_COUNTS=10,LARGE_N=10, MIN_TOTAL_COUNTS=15, MIN_PROP_BY_EXPR=0.5,MIN_PROP_BY_PROP=0.1,MIN_SMPLS=2, 
