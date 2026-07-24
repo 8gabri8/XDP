@@ -574,7 +574,14 @@ def run_nebula_with_factors(
         dim_red_covs = [c for c in df_all.columns if c.startswith("GEP_")]
     else:
         df_all = None
-        dim_red_covs = [] if TYPE_DEG == "baseline_nebula" else ["gradient_score"]
+        if TYPE_DEG == "baseline_nebula":
+            dim_red_covs = []
+        elif TYPE_DEG == "r_nebula":
+            # real spatial dorsal-ventral coordinate (from fitted splines), as opposed to the
+            # transcriptomic "gradient_score" proxy - expects adata.obs["r"] to already exist
+            dim_red_covs = ["r"]
+        else:
+            dim_red_covs = ["gradient_score"]
 
 
     ###################
@@ -583,12 +590,15 @@ def run_nebula_with_factors(
 
     print("Saving h5ad file...")
 
-    for pc in dim_red_covs:
-        if pc in adata.obs.columns.tolist():
-            adata.obs = adata.obs.drop(columns=[pc])
     if "barcode" in adata.obs.columns:
         adata.obs = adata.obs.drop(columns=["barcode"])
     if df_all is not None: # baseline, gradient score not have df_all
+        # only drop+remerge dim_red_covs when there's a freshly computed df_all to remerge
+        # from (PCA/cNMF) - for baseline/gradient_score there's nothing to remerge, so the
+        # column already sitting in adata.obs (e.g. from calc_gradient_score) must stay put
+        for pc in dim_red_covs:
+            if pc in adata.obs.columns.tolist():
+                adata.obs = adata.obs.drop(columns=[pc])
         adata.obs = adata.obs.merge(df_all, how="left", left_index=True, right_on="barcode", validate="one_to_one")
         adata.obs.index = adata.obs["barcode"]  # restore original index
         adata.obs = adata.obs.drop(columns=["barcode"])

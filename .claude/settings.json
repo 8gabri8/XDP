@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(awk '/=========== 03_STR_give_ct_for_deg/,0' /home/gdallagl/.claude/projects/-home-gdallagl-myworkdir-XDP/616e2a9a-4cad-4941-b61a-de7c3f396cd7/tool-results/b40j1bdkk.txt)",
+      "Bash(SCRATCH=/tmp/claude-1016/-home-gdallagl-myworkdir-XDP/616e2a9a-4cad-4941-b61a-de7c3f396cd7/scratchpad *)",
+      "Read(//tmp/**)",
+      "Bash(cd /tmp *)",
+      "Bash(jq -r \".cells[89].outputs[]? | \\(.text // empty\\) | if type==\\\\\"array\\\\\" then join\\(\\\\\"\\\\\"\\) else . end\" script/multiple_samples_analysis/DEG_nebula_on_high_mito.ipynb)",
+      "Bash(jq -r \".cells[89].outputs[]?.data?.\\\\\"text/plain\\\\\" // empty | if type==\\\\\"array\\\\\" then join\\(\\\\\"\\\\\"\\) else . end\" script/multiple_samples_analysis/DEG_nebula_on_high_mito.ipynb)",
+      "Bash(mkdir -p /tmp/claude-1016/-home-gdallagl-myworkdir-XDP/41e0f072-0b1b-4168-b1c9-527863de2afb/scratchpad/nup_imgs)",
+      "Bash(awk -F, 'NR==1{for\\(i=1;i<=NF;i++\\) h[$i]=i} NR>1{if\\($h[\"is_significant\"]==\"True\"\\) print}' Matrix/deg_results_formatted.csv)",
+      "Bash(awk -F, 'NR==1{for\\(i=1;i<=NF;i++\\) h[$i]=i} NR>1{if\\($h[\"is_significant\"]==\"True\"\\) print}' Patch/deg_results_formatted.csv)",
+      "Bash(awk -F, 'NR==1{for\\(i=1;i<=NF;i++\\) h[$i]=i} NR>1{if\\($h[\"is_significant\"]==\"True\"\\) printf \"%s\\\\t%.3f\\\\t%.2e\\\\t%s\\\\n\",$h[\"gene\"],$h[\"logFC_conditionXDP\"],$h[\"p_conditionXDP\"],$h[\"is_grad_gene\"]}' Matrix/deg_results_formatted.csv)",
+      "Bash(awk -F, 'NR==1{for\\(i=1;i<=NF;i++\\) h[$i]=i} NR>1{if\\($h[\"is_significant\"]==\"True\"\\) printf \"%s\\\\t%.3f\\\\t%.2e\\\\t%s\\\\n\",$h[\"gene\"],$h[\"logFC_conditionXDP\"],$h[\"p_conditionXDP\"],$h[\"is_grad_gene\"]}' Patch/deg_results_formatted.csv)",
+      "Bash(awk -F',' 'NR>1{print $2}' Matrix/cov_df_for_factor_significant.csv)",
+      "Bash(awk -F',' 'NR>1{print $3}' Matrix/cov_df_for_factor_significant.csv)",
+      "Bash(awk -F',' 'NR>1{print $8}' Matrix/cov_df_for_factor_significant.csv)"
+    ]
+  }
+}
