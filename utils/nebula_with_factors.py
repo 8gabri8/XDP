@@ -563,8 +563,11 @@ def run_nebula_with_factors(
     ###################
 
     if TYPE_DEG == "PCA_nebula":
-        df_h = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_pcs.csv")
-        df_d = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/diseased_pcs.csv")
+        # ATTENTION: force barcode to string - some datasets (e.g. SlideTags) have purely
+        # numeric barcodes (e.g. "95409"), which pandas would otherwise silently infer as
+        # int64, breaking the merge below against adata.obs.index (always string)
+        df_h = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/healthy_pcs.csv", dtype={"barcode": str})
+        df_d = pd.read_csv(f"{SAVE_HEALTHY_PCA_RESULT}/diseased_pcs.csv", dtype={"barcode": str})
         df_all = pd.concat([df_h, df_d], axis=0)
         df_all.to_csv(f"{SAVE_HEALTHY_PCA_RESULT}/pcs_all.csv", index=False)
         dim_red_covs = [c for c in df_all.columns if c.startswith("PC_")]

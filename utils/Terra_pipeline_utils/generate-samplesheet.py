@@ -14,6 +14,15 @@
 
 # FROM: https://github.com/MacoskoLab/Macosko-Pipelines/blob/main/bcl-convert/generate-samplesheet.py
 
+
+"""
+python generate-samplesheet.py \
+  --lanes 1,2,3,4,5,6,7,8 \
+  --indexes SI-TT-E1,SI-TT-E2,SI-TT-E3,SI-TT-E4,SI-TT-E5,SI-TT-E6,SI-TT-E7,SI-TT-F1,SI-TT-F2,SI-TT-F3,SI-TT-F4,SI-TT-F5,SI-TT-F6,SI-TT-G1,SI-TT-G2,SI-TT-G3,SI-TT-G4,SI-TT-G5,SI-TT-G6,SI-TT-G7,SI-TT-H1,SI-TT-H2,SI-TT-H3,SI-TT-H4,SI-TT-H5,SI-TT-H6 \
+  --name 260721_SL-EXB_0892_B23Y3GKLT4
+"""
+
+
 import argparse
 
 import os

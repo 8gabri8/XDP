@@ -181,8 +181,18 @@ def classify_gradient_agreement(df, rho_x, rho_y, padj_x, padj_y, pexpr_x, pexpr
 
 
 def plot_gradient_agreement(df, rho_x, rho_y, threshold=0.2, threshold_only=0.1,
-                             label_x="x", label_y="y", xlabel=None, ylabel=None, title=None):
-    """Jointplot + summary tables for a df already labeled by `classify_gradient_agreement`."""
+                             label_x="x", label_y="y", xlabel=None, ylabel=None, title=None,
+                             height=6, annotate_genes=False, n_annotate=10, dpi=None):
+    """Jointplot + summary tables for a df already labeled by `classify_gradient_agreement`.
+
+    height         : passed straight to sns.jointplot - controls the figure size.
+    annotate_genes : if True, label points with their gene name - same genes, same sort
+                     order, same `n_annotate` cap per category as the strongly_disagree /
+                     only_x / only_y tables printed below (strongly_agree isn't printed as
+                     its own table below, so it isn't annotated either).
+    dpi            : resolution of the rendered figure - jointplot has no dpi= kwarg of its
+                     own, so this is set on the figure after it's built.
+    """
     only_x_label, only_y_label = f"only_{label_x}", f"only_{label_y}"
     palette = {
         "strongly_agree":    "firebrick",
@@ -192,13 +202,22 @@ def plot_gradient_agreement(df, rho_x, rho_y, threshold=0.2, threshold_only=0.1,
         "other":             "lightgray",
     }
 
+    # legend labels: "type_gene" -> "gene type"; underscores -> spaces; first letter only
+    # capitalized (plain .capitalize() would lowercase cell-type names like "Matrix")
+    pretty = lambda s: (s.replace("_", " ")[:1].upper() + s.replace("_", " ")[1:]) if s else s
+    df = df.copy()
+    df["_gene_type"] = df["type_gene"].map(pretty)
+    palette_pretty = {pretty(k): v for k, v in palette.items()}
+
     g = sns.jointplot(
         data=df, x=rho_x, y=rho_y,
-        hue="type_gene", palette=palette,
-        alpha=0.4, height=6,
+        hue="_gene_type", palette=palette_pretty,
+        alpha=0.4, height=height,
         marginal_kws=dict(fill=True, alpha=0.3),
         ylim=(-1, 1), xlim=(-1, 1)
     )
+    if dpi is not None:
+        g.figure.set_dpi(dpi)
     for val in [-threshold, threshold]:
         g.ax_joint.axhline(val, color="k",    lw=0.5, ls="--", alpha=0.3)
         g.ax_joint.axvline(val, color="k",    lw=0.5, ls="--", alpha=0.3)
@@ -210,6 +229,22 @@ def plot_gradient_agreement(df, rho_x, rho_y, threshold=0.2, threshold_only=0.1,
     g.ax_joint.set_xlabel(xlabel or f"{label_x}  ρ")
     g.ax_joint.set_ylabel(ylabel or f"{label_y}  ρ")
     g.figure.suptitle(title or f"{label_x}  vs  {label_y}", y=1.02, fontsize=12)
+    if g.ax_joint.legend_ is not None:
+        g.ax_joint.legend_.set_title("Gene type")
+
+    if annotate_genes and n_annotate > 0:
+        to_annotate = pd.concat([
+            df[df["type_gene"] == "strongly_disagree"]
+              .sort_values([rho_x, rho_y], key=np.abs, ascending=False).head(n_annotate),
+            df[df["type_gene"] == only_x_label]
+              .sort_values(rho_x, key=np.abs, ascending=False).head(n_annotate),
+            df[df["type_gene"] == only_y_label]
+              .sort_values(rho_y, key=np.abs, ascending=False).head(n_annotate),
+        ])
+        for gene, row in to_annotate.iterrows():
+            g.ax_joint.annotate(str(gene), (row[rho_x], row[rho_y]), fontsize=7,
+                                 xytext=(3, 3), textcoords="offset points")
+
     plt.show()
 
     display(df["type_gene"].value_counts().rename(title or f"{label_x} vs {label_y}"))
@@ -674,5 +709,165 @@ def expr_along_r(gene, ct, adata, n_bins=20, donor_col="donor_id", conditions=No
     ax_pct.set_ylabel("fraction cells expr > 0")
     ax_pct.set_xlabel("r  (0 -> 1 along the spline)")
     ax_pct.set_ylim(0, 1)
+    plt.tight_layout()
+    plt.show()
+
+
+def calc_gene_profile_curves(adata, ct, genes, n_bins=20, donor_col="donor_id", metric_key="r",
+                              min_cells=20, min_cells_per_bin=10, layer="log1p_norm"):
+    """Per-DONOR (not donor-averaged) binned expression profile along the spline, for each
+    gene: the binned mean log1p_norm expression curve, its 1st and 2nd derivative along `r`,
+    and expression-weighted moments of `r` that summarize the curve's shape.
+
+    `min_cells_per_bin` NaNs out any bin averaged over fewer than that many cells (default
+    10) - without this, a bin with e.g. 1-2 cells (common for lowly-expressed genes) can
+    spike/crash the curve at a single point and inflate skew_r/kurt_r from pure sampling
+    noise, not real localized biology. This is the cell-count analogue of the
+    min_donors_per_bin reliability gate in calc_gradient_spread_scores.
+
+    Unlike `calc_gradient_spread_scores` (which pools donors into one reliability-gated
+    curve), this keeps every donor's curve separate so donor-to-donor consistency of the
+    shape itself can be inspected/plotted.
+
+    Derivatives use `np.gradient` (central differences) rather than `np.diff`, so
+    mean_expr/deriv1/deriv2 all stay the same length and share the same bin/`r` axis.
+
+    Moments treat the (non-negative) binned expression curve as a mass distribution over
+    `r` and ask where that mass sits:
+      mean_r - expression-weighted centroid along r (WHERE expression is concentrated)
+      var_r  - spread of that mass around the centroid
+      skew_r - asymmetry (>0: mass skewed toward high r / ventral; <0: toward low r / dorsal)
+      kurt_r - excess kurtosis (>0: peaked/concentrated in a narrow band; <0: flat/spread out)
+
+    Returns
+    -------
+    df_curves  : long-format DataFrame, one row per (donor, gene, bin) - columns
+                 donor, gene, bin, r, mean_expr, deriv1, deriv2
+    df_moments : one row per (donor, gene), indexed ["donor", "gene"] - columns
+                 mean_r_<ct>, var_r_<ct>, skew_r_<ct>, kurt_r_<ct> - suffixed with `ct` so
+                 moments from different cell types can be merged side by side without
+                 colliding (e.g. into a df_corr-style table with per-ct columns).
+    """
+    adata_ct = adata[adata.obs["ct"] == ct]
+    genes = [g for g in genes if g in adata_ct.var_names]
+
+    X_full = adata_ct[:, genes].layers[layer]
+    X_full = X_full.toarray() if sparse.issparse(X_full) else np.asarray(X_full, dtype=float)
+    r_full = adata_ct.obs[metric_key].values.astype(float)
+    donors_full = adata_ct.obs[donor_col].values
+
+    bins = np.linspace(0, 1, n_bins + 1)
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    curve_rows, moment_rows = [], []
+    for donor in pd.unique(donors_full):
+        mask = (donors_full == donor) & ~np.isnan(r_full)
+        if mask.sum() < min_cells:
+            continue
+        bin_idx = np.clip(np.digitize(r_full[mask], bins) - 1, 0, n_bins - 1)
+        Xd = X_full[mask]
+
+        curve = np.full((n_bins, len(genes)), np.nan)
+        for b in range(n_bins):
+            sel = bin_idx == b
+            if sel.sum() >= min_cells_per_bin:
+                curve[b] = Xd[sel].mean(axis=0)
+
+        deriv1 = np.gradient(curve, bin_centers, axis=0)
+        deriv2 = np.gradient(deriv1, bin_centers, axis=0)
+
+        for gi, gene in enumerate(genes):
+            curve_rows.extend(
+                (donor, gene, b, bin_centers[b], curve[b, gi], deriv1[b, gi], deriv2[b, gi])
+                for b in range(n_bins)
+            )
+
+            w = curve[:, gi]
+            valid = ~np.isnan(w)
+            if valid.sum() < 3 or np.nansum(w[valid]) <= 0:
+                moment_rows.append((donor, gene, np.nan, np.nan, np.nan, np.nan))
+                continue
+
+            rv, wv = bin_centers[valid], w[valid]
+            mean_r = np.average(rv, weights=wv)
+            var_r  = np.average((rv - mean_r) ** 2, weights=wv)
+            std_r  = np.sqrt(var_r)
+            if std_r > 0:
+                skew_r = np.average((rv - mean_r) ** 3, weights=wv) / std_r**3
+                kurt_r = np.average((rv - mean_r) ** 4, weights=wv) / std_r**4 - 3
+            else:
+                skew_r = kurt_r = np.nan
+            moment_rows.append((donor, gene, mean_r, var_r, skew_r, kurt_r))
+
+    moment_cols = [f"mean_r_{ct}", f"var_r_{ct}", f"skew_r_{ct}", f"kurt_r_{ct}"]
+
+    df_curves = pd.DataFrame(
+        curve_rows, columns=["donor", "gene", "bin", "r", "mean_expr", "deriv1", "deriv2"]
+    )
+    df_moments = pd.DataFrame(
+        moment_rows, columns=["donor", "gene", *moment_cols]
+    ).set_index(["donor", "gene"])
+
+    return df_curves, df_moments
+
+
+def plot_gene_profile_curves(df_curves, gene, ct=None, donor_col="donor"):
+    """Per-donor mean-expression / 1st-derivative / 2nd-derivative curves along r, for one
+    gene (output of `calc_gene_profile_curves`). Thin lines = individual donors, bold =
+    across-donor average - visual counterpart of the mean_r/var_r/skew_r/kurt_r moments."""
+    df_gene = df_curves[df_curves["gene"] == gene]
+    if df_gene.empty:
+        print(f"{gene} not found in df_curves")
+        return
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6, 8), sharex=True)
+    for donor in df_gene[donor_col].unique():
+        d = df_gene[df_gene[donor_col] == donor].sort_values("r")
+        ax1.plot(d["r"], d["mean_expr"], color="steelblue", lw=0.6, alpha=0.35)
+        ax2.plot(d["r"], d["deriv1"],   color="firebrick", lw=0.6, alpha=0.35)
+        ax3.plot(d["r"], d["deriv2"],   color="seagreen",  lw=0.6, alpha=0.35)
+
+    avg = df_gene.groupby("r")[["mean_expr", "deriv1", "deriv2"]].mean()
+    ax1.plot(avg.index, avg["mean_expr"], color="steelblue", lw=2.5, label="donor mean")
+    ax2.plot(avg.index, avg["deriv1"],   color="firebrick",  lw=2.5)
+    ax3.plot(avg.index, avg["deriv2"],   color="seagreen",   lw=2.5)
+
+    for ax in (ax2, ax3):
+        ax.axhline(0, color="black", lw=0.7, alpha=0.5)
+
+    ax1.set_ylabel("mean log1p_norm expr")
+    ax1.set_title(f"{gene}" + (f"  -  {ct}" if ct else ""))
+    ax1.legend()
+    ax2.set_ylabel("1st derivative\n(d expr / d r)")
+    ax3.set_ylabel("2nd derivative\n(d² expr / d r²)")
+    ax3.set_xlabel("r  (0 -> 1 along the spline)")
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_gene_profile_moments(df_moments, genes=None):
+    """One row per moment (mean_r / var_r / skew_r / kurt_r), genes on the x-axis, one point
+    per donor (output of `calc_gene_profile_curves`) - quick look at how consistent a gene's
+    along-r shape is across donors. Red dash = across-donor mean for that gene."""
+    df = df_moments.reset_index()
+    genes = df["gene"].unique().tolist() if genes is None else [g for g in genes if g in df["gene"].unique()]
+    df = df[df["gene"].isin(genes)]
+
+    moment_cols = ["mean_r", "var_r", "skew_r", "kurt_r"]
+    fig, axes = plt.subplots(len(moment_cols), 1, sharex=True,
+                              figsize=(max(0.6 * len(genes), 3) + 2, 3 * len(moment_cols)))
+    for ax, m in zip(axes, moment_cols):
+        sns.stripplot(data=df, x="gene", y=m, order=genes, ax=ax,
+                       color="steelblue", alpha=0.5, jitter=0.15, zorder=1)
+        gene_mean = df.groupby("gene")[m].mean().reindex(genes)
+        ax.scatter(range(len(genes)), gene_mean.values, color="firebrick",
+                   marker="_", s=400, linewidths=2, zorder=2)
+        ax.axhline(0, color="black", lw=0.6, alpha=0.4)
+        ax.set_ylabel(m)
+        ax.set_xlabel("")
+
+    axes[-1].set_xticks(range(len(genes)))
+    axes[-1].set_xticklabels(genes, rotation=45, ha="right")
+    fig.suptitle("Per-donor expression-weighted moments of r", y=1.0)
     plt.tight_layout()
     plt.show()
