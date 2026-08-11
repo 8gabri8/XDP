@@ -28,9 +28,9 @@ from pathlib import Path
 
 # Configuration variables
 BASE_PATH = "/home/gdallagl/myworkdir/XDP/data/XDP"
-SAMPLE_ID = "sample_11"
+SAMPLE_ID = "sample_12"
 BCL = "260721_SL-EXB_0892_B23Y3GKLT4"
-LIBRARIES = ["SI-TT-G4", "SI-TT-G5", "SI-TT-G6", "SI-TT-G7"]  # List of library names (e.g., SI-TT-B10, SI-TT-B11, SI-TT-B12)
+LIBRARIES = ["SI-TT-H1", "SI-TT-H2", "SI-TT-H3"]  # List of library names (e.g., SI-TT-B10, SI-TT-B11, SI-TT-B12)
 
 # Create base directory structure
 base_path = Path(BASE_PATH) / "SlideTags_dataset" / "SlideTags_single_libraries" / SAMPLE_ID

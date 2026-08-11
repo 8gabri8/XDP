@@ -871,3 +871,63 @@ def plot_gene_profile_moments(df_moments, genes=None):
     fig.suptitle("Per-donor expression-weighted moments of r", y=1.0)
     plt.tight_layout()
     plt.show()
+
+
+def select_range_unbiased_genes(df_curves, r_lo, r_hi, frac_change_required=0.7):
+    """Which genes' spatial change is actually OBSERVABLE within a restricted r-range (e.g.
+    the range surviving XDP tissue covers) - not just genes whose SINGLE steepest bin happens
+    to fall inside it.
+
+    Motivation: many genes ramp like a sigmoid (flat -> sharp transition -> flat) rather than
+    a smooth end-to-end ramp. If disease tissue only survives up to a certain point along r
+    and never reaches a gene's transition zone, that gene will look "flat" (no gradient) in
+    the diseased condition purely because the informative part of its curve was never
+    sampled - not because the gradient was actually lost. Comparing health vs. XDP for such a
+    gene is uninformative, not evidence of a disease effect, and should be excluded before
+    interpreting a "lost in XDP" call.
+
+    For each gene, takes the donor-averaged |deriv1| curve (the `deriv1` column of
+    `df_profile_curves` from `calc_gene_profile_curves`, built on HEALTH data since that's
+    where the reference transition shape comes from) as a measure of "how much change
+    happens at each r", and asks what FRACTION of the gene's TOTAL change - integrated over
+    the whole 0-1 axis - falls inside [r_lo, r_hi]. This is stricter than checking only the
+    single steepest bin: a gene whose transition merely straddles the window's edge will have
+    most of its |deriv1| mass outside, and correctly score low even though its single peak
+    bin might technically sit just inside.
+
+    Parameters
+    ----------
+    df_curves : long-format df_profile_curves (donor, gene, bin, r, mean_expr, deriv1,
+                deriv2), i.e. the first return value of `calc_gene_profile_curves`.
+    r_lo, r_hi : the r-range actually covered by the tissue being compared against, e.g.
+                 `xdp_adata_sub.obs.loc[xdp_adata_sub.obs["ct"] == ct, "r"].quantile([0.02, 0.98])`.
+                 Trimmed percentiles are safer than the literal min/max, which a single
+                 outlier cell can distort - tighten/loosen the quantiles depending on how much
+                 you trust the tails of the observed r distribution.
+    frac_change_required : float in (0, 1], default 0.7. Minimum fraction of a gene's total
+                 |deriv1| change (summed across the WHOLE axis) that must fall inside
+                 [r_lo, r_hi] to call that gene "observable" in the restricted window.
+                   - Raise it (e.g. 0.9) for a stricter, shorter, more confidently unbiased
+                     list - use when a false "gene lost its gradient" call would be costly.
+                   - Lower it (e.g. 0.5) to keep genes that are only partially observable, at
+                     the cost of letting some residual range-truncation bias back in - use
+                     when you'd rather not discard borderline genes prematurely.
+
+    Returns
+    -------
+    df_coverage : one row per gene - `frac_change_in_range` (the continuous score, so you can
+                  inspect/re-threshold without recomputing) and `observable` (bool at the
+                  chosen frac_change_required).
+    """
+    deriv1_by_r = df_curves.groupby(["gene", "r"])["deriv1"].mean().unstack("r")
+    abs_d = deriv1_by_r.abs()
+
+    total_change    = abs_d.sum(axis=1)
+    in_range_change = abs_d.loc[:, (abs_d.columns >= r_lo) & (abs_d.columns <= r_hi)].sum(axis=1)
+
+    frac_in_range = (in_range_change / total_change).where(total_change > 0)
+
+    return pd.DataFrame({
+        "frac_change_in_range": frac_in_range,
+        "observable": frac_in_range >= frac_change_required,
+    })

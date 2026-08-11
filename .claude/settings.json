@@ -52,10 +52,29 @@
       "Bash(awk 'NR%4==2{print length\\($0\\)}')",
       "Bash(awk '/Sample_ID/{print; found=1; next} found && /SI-TT-E1/{print; c++; if\\(c>=2\\) exit}' \"utils/Terra_pipeline_utils/samplesheets/260721_SL-EXB_0892_B23Y3GKLT4-samplesheet.csv\")",
       "Bash(zcat /home/gdallagl/myworkdir/XDP/data/_tmp/SI-TT-E1_S1_L001_R2_001.fastq.gz)",
-      "Bash(xxd)"
+      "Bash(xxd)",
+      "Bash(.venv/bin/jupyter nbconvert *)",
+      "Bash(jupyter kernelspec *)",
+      "Bash(.venv/bin/jupyter kernelspec *)",
+      "Bash(gcloud auth *)",
+      "Bash(nohup .venv/bin/jupyter nbconvert --to notebook --execute --ExecutePreprocessor.kernel_name=xdp --ExecutePreprocessor.timeout=3600 --output /tmp/claude-1016/-home-gdallagl-myworkdir-XDP/a4575106-a230-4180-9ccb-3d8dd989a128/scratchpad/quantify_32i_repro_out.ipynb /tmp/claude-1016/-home-gdallagl-myworkdir-XDP/a4575106-a230-4180-9ccb-3d8dd989a128/scratchpad/quantify_32i_repro.ipynb)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(kill -0 37102)",
+      "Bash(.venv/bin/python -c \"import nbconvert; print\\(nbconvert.__file__\\)\")",
+      "Bash(.venv/bin/python -m pip show nbconvert)",
+      "Bash(.venv/bin/jupyter execute *)",
+      "Bash(kill -0 37905)",
+      "Bash(sed -E 's/__[^_]+\\(_[^_]+\\)*$//')",
+      "Bash(zcat /home/gdallagl/remote_volumes/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/single_cell_aggregation/out/STR_D1D2_Hybrid_MSN__CaH/barcodes.tsv.gz)",
+      "Bash(zcat /home/gdallagl/remote_volumes/broad/bican_um1_mccarroll/RNAseq/analysis/CAP_freeze_3_analysis/single_cell_aggregation/out/STR_D1D2_Hybrid_MSN__CaH/features.tsv.gz)",
+      "Bash(jupyter nbconvert *)",
+      "Bash(mkdir -p /tmp/claude-1016/-home-gdallagl-myworkdir-XDP/9a3f2a47-7c34-436b-8b01-873b12e35c1d/scratchpad)",
+      "Bash(git stash *)",
+      "Bash(mkdir -p /home/gdallagl/myworkdir/XDP/data/XDP/SlideTags_dataset/adatas/Striatum *)"
     ],
     "additionalDirectories": [
-      "/tmp/claude-1016/-home-gdallagl-myworkdir-XDP/856ec16b-e98e-4272-9633-801047a0852c/scratchpad"
+      "/tmp/claude-1016/-home-gdallagl-myworkdir-XDP/856ec16b-e98e-4272-9633-801047a0852c/scratchpad",
+      "/home/gdallagl/myworkdir/XDP/data/XDP/SlideTags_dataset/adatas"
     ]
   }
 }
