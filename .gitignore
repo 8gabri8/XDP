@@ -18,3 +18,9 @@ script/_old/*
 /utils/SCENIC/*
 script/single_sample_analysis-Slide_tag/06_manual_labels.ipynb
 script/SlideTags_XDP_preprocessing/06_manual_labels.ipynb
+
+/utils/Terra_pipeline_utils/tmp_file_to_puck_check
+/utils/Terra_pipeline_utils/tmp_file_to_puck_check/*
+
+.claude/
+.claude/*

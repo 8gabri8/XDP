@@ -927,6 +927,88 @@ def rank_markers_per_cluster(adata, cluster_col, layer="log1p_norm", n_genes=5, 
 
     return results
 
+
+def rank_markers(
+    adata,
+    cluster_col,
+    layer="log1p_norm",
+    n_genes=5,
+    markers=None,
+    groups="all",
+    reference="rest",
+    min_in_group_fraction=0.25,
+    max_out_group_fraction=0.2,
+    min_fold_change=1,
+    pval_cutoff=0.05,
+    gene_symbols=None,
+    key_added=None,
+):
+    """
+    Wilcoxon markers per cluster, with fraction filtering.
+ 
+    groups         : "all" or a list of clusters to test, e.g. ["7", "18"]
+    reference      : "rest" (each group vs all other cells) or ONE cluster
+                     used as baseline, e.g. "5"
+    gene_symbols   : column in adata.var with gene names (e.g. "gene_symbol");
+                     used for the output and for matching `markers`
+    max_out_group_fraction : with a baseline cluster, the out-group is that
+                     cluster only; set to 1.0 to disable this filter
+    Note: the fraction filter reads adata.X (not `layer`), so adata.X must
+    not be scaled/z-scored (nonzero = expressed must hold).
+    """
+    # cluster labels as string categories, so "7" matches the column
+    adata.obs[cluster_col] = adata.obs[cluster_col].astype(str).astype("category")
+    cats = list(adata.obs[cluster_col].cat.categories)
+ 
+    if groups != "all":
+        groups = [str(g) for g in groups]
+        missing = [g for g in groups if g not in cats]
+        if missing:
+            raise ValueError(f"Clusters not found in {cluster_col}: {missing}")
+ 
+    if reference != "rest":
+        reference = str(reference)
+        if reference not in cats:
+            raise ValueError(f"Reference cluster '{reference}' not in {cluster_col}")
+        if groups != "all" and reference in groups:
+            groups = [g for g in groups if g != reference]
+ 
+    key = key_added or f"rgg_{cluster_col}_vs_{reference}"
+ 
+    sc.tl.rank_genes_groups(
+        adata, groupby=cluster_col, groups=groups, reference=reference,
+        layer=layer, use_raw=False, method="wilcoxon", key_added=key,
+    )
+ 
+    # writes a separate key; filtered-out genes become NaN
+    sc.tl.filter_rank_genes_groups(
+        adata, key=key, key_added=f"{key}_filtered",
+        min_in_group_fraction=min_in_group_fraction,
+        max_out_group_fraction=max_out_group_fraction,
+        min_fold_change=min_fold_change, use_raw=False,
+    )
+ 
+    gene_to_ct = {g: ct for ct, genes in markers.items() for g in genes} if markers else {}
+ 
+    clusters_to_run = cats if groups == "all" else groups
+    clusters_to_run = [c for c in clusters_to_run if c != reference]
+ 
+    results = {}
+    for cluster in clusters_to_run:
+        df = sc.get.rank_genes_groups_df(
+            adata, group=cluster, key=f"{key}_filtered",
+            pval_cutoff=pval_cutoff, gene_symbols=gene_symbols,
+        )
+        df = df.dropna(subset=["names"])          # drop genes removed by the filter
+        if n_genes is not None:
+            df = df.head(n_genes)
+        if markers:
+            name_col = gene_symbols if gene_symbols else "names"
+            df["cell_type"] = df[name_col].map(gene_to_ct).fillna("")
+        results[cluster] = df.reset_index(drop=True)
+ 
+    return results
+
 def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds", umap_name="umap", vmin=None, vmax=None):
 
     if gene_col is not None:

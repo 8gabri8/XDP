@@ -70,11 +70,37 @@
       "Bash(jupyter nbconvert *)",
       "Bash(mkdir -p /tmp/claude-1016/-home-gdallagl-myworkdir-XDP/9a3f2a47-7c34-436b-8b01-873b12e35c1d/scratchpad)",
       "Bash(git stash *)",
-      "Bash(mkdir -p /home/gdallagl/myworkdir/XDP/data/XDP/SlideTags_dataset/adatas/Striatum *)"
+      "Bash(mkdir -p /home/gdallagl/myworkdir/XDP/data/XDP/SlideTags_dataset/adatas/Striatum *)",
+      "Bash(wget -q \"https://ftp.ensembl.org/pub/release-116/gtf/homo_sapiens/Homo_sapiens.GRCh38.116.gtf.gz\" -O rel116.gtf.gz)",
+      "Bash(nvidia-smi)",
+      "Bash(cd /home/gdallagl/myworkdir/XDP/data/HD_Handsaker *)",
+      "Bash(git check-ignore *)",
+      "Bash(find / -xdev -maxdepth 6 -iname \"*Handsaker_expansion*\")",
+      "Bash(crontab -l)",
+      "Read(//etc/cron.d/**)",
+      "Bash(R --version)",
+      "Bash(ldd /home/gdallagl/R/x86_64-pc-linux-gnu-library/4.5/Rfast/libs/Rfast.so)",
+      "Bash(find / -xdev -iname \"libtbb*\")",
+      "Bash(Rscript -e 'ip <- installed.packages\\(\\)[,c\\(\"Package\",\"Version\",\"Built\"\\)]; print\\(ip[ip[,\"Package\"] %in% c\\(\"RcppParallel\",\"Rfast\",\"nebula\"\\),]\\)')",
+      "Bash(cd /home/gdallagl/myworkdir/XDP/data/_old/mNSF/tutorial && cp mnsf_XDP_SlideTags_tutorial.ipynb mnsf_XDP_SlideTags_tutorial.ipynb.bak && echo \"backup created\")",
+      "Bash(pyenv versions *)",
+      "Bash(find / -maxdepth 6 -iname \"tensorflow\" -type d)",
+      "Bash(/home/gdallagl/.pyenv/versions/3.11.8/envs/mnsf-env/bin/python -c \"import tensorflow as tf; print\\(tf.__version__\\)\")",
+      "Bash(/home/gdallagl/.pyenv/versions/3.11.8/envs/mnsf-env/bin/python -c \"import skmisc; print\\('skmisc OK', skmisc.__version__ if hasattr\\(skmisc,'__version__'\\) else ''\\)\")",
+      "Bash(/home/gdallagl/myworkdir/XDP/.venv/bin/python -c \"import skmisc; print\\('skmisc OK'\\)\")",
+      "Bash(git checkout *)",
+      "Bash(python -c ' *)",
+      "Bash(python -)",
+      "Bash(python -c \"import anndata,pysam,scanpy;print\\(anndata.__version__, pysam.__version__, scanpy.__version__\\)\")",
+      "Bash(samtools --version)"
     ],
     "additionalDirectories": [
       "/tmp/claude-1016/-home-gdallagl-myworkdir-XDP/856ec16b-e98e-4272-9633-801047a0852c/scratchpad",
-      "/home/gdallagl/myworkdir/XDP/data/XDP/SlideTags_dataset/adatas"
+      "/home/gdallagl/myworkdir/XDP/data/XDP/SlideTags_dataset/adatas",
+      "/tmp/claude-1016/-home-gdallagl-myworkdir-XDP/3a028fc6-682b-479f-8f29-68b2259de40e/scratchpad",
+      "/home/gdallagl/myworkdir/XDP/data/HD_Handsaker",
+      "/home/gdallagl/myworkdir/data/HD_Handsaker",
+      "/home/gdallagl/myworkdir/data/_old/mNSF/tutorial"
     ]
   }
 }

@@ -7,6 +7,7 @@ from statsmodels.stats.multitest import multipletests
 import seaborn as sns
 import matplotlib.pyplot as plt
 import scanpy as sc
+from adjustText import adjust_text
 
 
 def process_adata(adata):
@@ -182,16 +183,21 @@ def classify_gradient_agreement(df, rho_x, rho_y, padj_x, padj_y, pexpr_x, pexpr
 
 def plot_gradient_agreement(df, rho_x, rho_y, threshold=0.2, threshold_only=0.1,
                              label_x="x", label_y="y", xlabel=None, ylabel=None, title=None,
-                             height=6, annotate_genes=False, n_annotate=10, dpi=None):
+                             height=6, annotate_genes=False, n_annotate=10, dpi=None,
+                             annotate_concordant=False):
     """Jointplot + summary tables for a df already labeled by `classify_gradient_agreement`.
 
-    height         : passed straight to sns.jointplot - controls the figure size.
-    annotate_genes : if True, label points with their gene name - same genes, same sort
-                     order, same `n_annotate` cap per category as the strongly_disagree /
-                     only_x / only_y tables printed below (strongly_agree isn't printed as
-                     its own table below, so it isn't annotated either).
-    dpi            : resolution of the rendered figure - jointplot has no dpi= kwarg of its
-                     own, so this is set on the figure after it's built.
+    height               : passed straight to sns.jointplot - controls the figure size.
+    annotate_genes       : if True, label points with their gene name.
+    annotate_concordant  : selects which genes annotate_genes labels.
+                            False (default) - original behavior: strongly_disagree /
+                            only_x / only_y, top `n_annotate` per category, same sort
+                            order as the tables printed below. strongly_agree is skipped.
+                            True - label only the strongly_agree (concordant) genes
+                            instead: top `n_annotate` per direction (positive / negative),
+                            ranked by the weaker of the two |rho|.
+    dpi                  : resolution of the rendered figure - jointplot has no dpi= kwarg
+                            of its own, so this is set on the figure after it's built.
     """
     only_x_label, only_y_label = f"only_{label_x}", f"only_{label_y}"
     palette = {
@@ -233,17 +239,28 @@ def plot_gradient_agreement(df, rho_x, rho_y, threshold=0.2, threshold_only=0.1,
         g.ax_joint.legend_.set_title("Gene type")
 
     if annotate_genes and n_annotate > 0:
-        to_annotate = pd.concat([
-            df[df["type_gene"] == "strongly_disagree"]
-              .sort_values([rho_x, rho_y], key=np.abs, ascending=False).head(n_annotate),
-            df[df["type_gene"] == only_x_label]
-              .sort_values(rho_x, key=np.abs, ascending=False).head(n_annotate),
-            df[df["type_gene"] == only_y_label]
-              .sort_values(rho_y, key=np.abs, ascending=False).head(n_annotate),
-        ])
-        for gene, row in to_annotate.iterrows():
-            g.ax_joint.annotate(str(gene), (row[rho_x], row[rho_y]), fontsize=7,
-                                 xytext=(3, 3), textcoords="offset points")
+        if annotate_concordant:
+            agree = df[df["type_gene"] == "strongly_agree"].copy()
+            agree["_concordance"] = agree[[rho_x, rho_y]].abs().min(axis=1)
+            to_annotate = pd.concat([
+                agree[agree[rho_x] > 0].sort_values("_concordance", ascending=False).head(n_annotate),
+                agree[agree[rho_x] < 0].sort_values("_concordance", ascending=False).head(n_annotate),
+            ])
+        else:
+            to_annotate = pd.concat([
+                df[df["type_gene"] == "strongly_disagree"]
+                  .sort_values([rho_x, rho_y], key=np.abs, ascending=False).head(n_annotate),
+                df[df["type_gene"] == only_x_label]
+                  .sort_values(rho_x, key=np.abs, ascending=False).head(n_annotate),
+                df[df["type_gene"] == only_y_label]
+                  .sort_values(rho_y, key=np.abs, ascending=False).head(n_annotate),
+            ])
+        texts = [
+            g.ax_joint.text(row[rho_x], row[rho_y], str(gene), fontsize=7)
+            for gene, row in to_annotate.iterrows()
+        ]
+        adjust_text(texts, ax=g.ax_joint,
+                    arrowprops=dict(arrowstyle="-", color="gray", lw=0.5, alpha=0.6))
 
     plt.show()
 

@@ -18,7 +18,7 @@ from . import DEG
 import re
 
 
-def calculate_pca(adata, calculate_or_project, saving_folder, variance_threshold=None, N_PCS_TO_USE=None, df_stats=None, df_loadings=None):
+def calculate_pca(adata, calculate_or_project, saving_folder, variance_threshold=None, N_PCS_TO_USE=None, df_stats=None, df_loadings=None, MIN_PCS_TO_USE=5):
     
     # Common steps
     print("Normalising")
@@ -92,8 +92,10 @@ def calculate_pca(adata, calculate_or_project, saving_folder, variance_threshold
             y_norm = var_explained / var_explained.max()
             distances = np.abs(y_norm - (y_norm[0] + (y_norm[-1] - y_norm[0]) * x_norm))
             N_PCS_TO_USE = int(np.argmax(distances) + 1)
+            # The knee is very strict when PC1-2 dominate: enforce a floor
+            N_PCS_TO_USE = max(N_PCS_TO_USE, MIN_PCS_TO_USE)
 
-            print(f"Auto-selected {N_PCS_TO_USE} PCs via elbow "
+            print(f"Auto-selected {N_PCS_TO_USE} PCs via elbow (min {MIN_PCS_TO_USE}) "
                 f"({cumvar[N_PCS_TO_USE-1]*100:.1f}% variance explained using {MAX_PCS_TO_COMPUTE})")
 
         # Save pcs
