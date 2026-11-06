@@ -1006,7 +1006,66 @@ def rank_markers(
             name_col = gene_symbols if gene_symbols else "names"
             df["cell_type"] = df[name_col].map(gene_to_ct).fillna("")
         results[cluster] = df.reset_index(drop=True)
- 
+
+    return results
+
+def wilcoxon_deg_per_cluster(
+    adata,
+    cluster_col,
+    layer="log1p_norm",
+    groups="all",
+    reference="rest",
+    gene_symbols=None,
+    pval_cutoff=0.05,
+    min_abs_logfc=0.25,
+    min_pct=0.25,
+    max_pct_other=None,
+    key_added=None,
+):
+    """
+    Full Wilcoxon DE per cluster (each cluster vs `reference`), ALL genes kept,
+    both directions.
+
+    Returns {cluster: {"all": df, "up": df, "down": df}}
+      all  : every gene, sorted by score (top = most UP, bottom = most DOWN), unfiltered
+      up   : pvals_adj < pval_cutoff & logFC >  min_abs_logfc, strongest first
+      down : pvals_adj < pval_cutoff & logFC < -min_abs_logfc, strongest first
+    pct_nz_group / pct_nz_reference = fraction of cells expressing the gene.
+
+    Fraction filters are mirrored, i.e. applied on the side where the gene is HIGH:
+      min_pct       : up -> pct_nz_group >= min_pct ; down -> pct_nz_reference >= min_pct
+                      (= min_in_group_fraction; removes rarely detected, noisy genes)
+      max_pct_other : up -> pct_nz_reference <= x   ; down -> pct_nz_group <= x
+                      (= max_out_group_fraction; marker-style specificity, None = off,
+                      since it drops real changes in broadly expressed genes)
+    """
+    adata.obs[cluster_col] = adata.obs[cluster_col].astype(str).astype("category")
+    key = key_added or f"deg_{cluster_col}_vs_{reference}"
+
+    # n_genes=n_vars: store every gene (default keeps only top 100 -> no down genes)
+    sc.tl.rank_genes_groups(
+        adata, groupby=cluster_col, groups=groups, reference=str(reference),
+        layer=layer, use_raw=False, method="wilcoxon",
+        n_genes=adata.n_vars, pts=True, key_added=key,
+    )
+
+    results = {}
+    for cluster in adata.uns[key]["names"].dtype.names:   # clusters actually tested
+        df = sc.get.rank_genes_groups_df(adata, group=cluster, key=key, gene_symbols=gene_symbols)
+        sig = df["pvals_adj"] < pval_cutoff
+        keep_up = sig & (df["logfoldchanges"] > min_abs_logfc) & (df["pct_nz_group"] >= min_pct)
+        keep_down = sig & (df["logfoldchanges"] < -min_abs_logfc) & (df["pct_nz_reference"] >= min_pct)
+        if max_pct_other is not None:
+            keep_up &= df["pct_nz_reference"] <= max_pct_other
+            keep_down &= df["pct_nz_group"] <= max_pct_other
+        up = df[keep_up]                    # score desc
+        down = df[keep_down].iloc[::-1]     # most negative first
+        results[cluster] = {
+            "all": df,
+            "up": up.reset_index(drop=True),
+            "down": down.reset_index(drop=True),
+        }
+
     return results
 
 def calculate_and_plot_markers(adata, makers_dict, ncol=3, layer="log1p_norm", gene_col=None, color_map="Reds", umap_name="umap", vmin=None, vmax=None):

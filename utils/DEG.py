@@ -584,10 +584,15 @@ def run_nebula_parallel_script(
     n_cores: int = 16,
     save_tmp: bool = False,
     suffix: str = None,
+    cpc: float = None,
+    mincp: int = None,
 ):
     """
     Run NEBULA analysis in parallel using the bash orchestration script.
-    
+
+    cpc, mincp : NEBULA's own low-expression gene filters (counts per cell / min. non-zero cells).
+                 None (default) = not passed -> NEBULA defaults (cpc=0.005, mincp=5), as before.
+
     Returns:
     --------
     str : Path to the combined results file
@@ -615,7 +620,13 @@ def run_nebula_parallel_script(
     # Add suffix if provided
     if suffix:
         cmd.extend(["--suffix", suffix])
-    
+
+    # Add NEBULA gene filters only if given (otherwise NEBULA defaults)
+    if cpc is not None:
+        cmd.extend(["--cpc", str(cpc)])
+    if mincp is not None:
+        cmd.extend(["--mincp", str(int(mincp))])
+
     print(f"Running command: {' '.join(cmd)}")
     print("=" * 80)
     

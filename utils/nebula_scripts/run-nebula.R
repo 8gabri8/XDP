@@ -37,6 +37,8 @@ spec = matrix(c(
     'suffix', 's', 2, "character",
     'n-cores', 'n', 2, "integer",
     'out-dir', 'o', 2, "character",
+    'cpc', 'q', 2, "double",
+    'mincp', 'm', 2, "integer",
     'clobber', 'b', 2, "logical"
 ), byrow = TRUE, ncol = 4)
 opt = getopt(spec)
@@ -76,6 +78,19 @@ if (is.null(opt[['clobber']])){
     CLOBBER = FALSE
 } else {
     CLOBBER = opt[['clobber']]
+}
+
+# NEBULA low-expression gene filters; not given -> NEBULA defaults
+if (is.null(opt[['cpc']])){
+    CPC = 0.005
+} else {
+    CPC = opt[['cpc']]
+}
+
+if (is.null(opt[['mincp']])){
+    MINCP = 5
+} else {
+    MINCP = opt[['mincp']]
 }
 
 geneset_dir = dirname(PATH)
@@ -210,7 +225,9 @@ re_ln = tryCatch({
         offset = data_g$offset,
         method = 'LN',
         ncore  = N_CORES,
-        output_re = TRUE
+        output_re = TRUE,
+        cpc    = CPC,
+        mincp  = MINCP
     )}, error = function(e) {
     msg = conditionMessage(e)
     if (grepl("No gene passed the filtering", msg, ignore.case = TRUE)) {

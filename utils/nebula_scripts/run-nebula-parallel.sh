@@ -14,6 +14,8 @@ N_FOLDS=""
 N_CORES=""
 SAVE_TMP="0" # 0 --> dleete tmp files
 SUFFIX="" # suffix for output files
+CPC=""    # NEBULA cpc filter; empty -> NEBULA default
+MINCP=""  # NEBULA mincp filter; empty -> NEBULA default
 
 usage() {
   cat <<USAGE
@@ -26,7 +28,8 @@ Usage:
     --n-folds 8 \\
     --n-cores 4 \\
     --save-tmp 0|1 \\
-    --suffix <suffix>
+    --suffix <suffix> \\
+    --cpc <cpc> --mincp <mincp>   (optional, NEBULA gene filters)
 
 
 Notes:
@@ -47,6 +50,8 @@ while [[ $# -gt 0 ]]; do
     --n-cores) N_CORES="$2"; shift 2 ;;
     --save-tmp) SAVE_TMP="$2"; shift 2 ;;
     --suffix ) SUFFIX="$2"; shift 2 ;;
+    --cpc) CPC="$2"; shift 2 ;;
+    --mincp) MINCP="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown arg: $1"; usage; exit 1 ;;
   esac
@@ -89,6 +94,11 @@ fi
 
 final_qs="${final_dir}/${nebula_out_basename}"
 
+# optional NEBULA gene filters, forwarded to run-nebula.R only if given
+filter_str=""
+[[ -n "${CPC}" ]] && filter_str="${filter_str} --cpc ${CPC}"
+[[ -n "${MINCP}" ]] && filter_str="${filter_str} --mincp ${MINCP}"
+
 mkdir -p "$chunks_dir" "$tmp_de_dir"
 
 echo "[INFO] Input: $PATH_QS"
@@ -102,6 +112,7 @@ echo "[INFO] n-folds: $N_FOLDS"
 echo "[INFO] parallel jobs: $N_CORES"
 
 echo "[INFO] id-col: $ID_COL"
+echo "[INFO] NEBULA filters: cpc=${CPC:-default} mincp=${MINCP:-default}"
 
 # comma split covs, put each on a newline
 echo "[INFO] covs:"
@@ -152,11 +163,11 @@ echo "[INFO] Launching chunk jobs with GNU parallel..."
 # (We prefer your pattern: xargs -I @ echo ... | parallel -j N)
 if [[ -n "${COVS}" ]]; then
   find "$chunks_dir" -maxdepth 1 -type f -name "chunk_*.qs" -print0 \
-    | xargs -0 -I @ echo Rscript "$SCRIPT_DIR/run-nebula.R" --path @ --covs "$COVS" --id-col "$ID_COL" --offset-col nUMI_nebula --n-cores 1 --out-dir "$tmp_de_dir" "$suffix_str" \
+    | xargs -0 -I @ echo Rscript "$SCRIPT_DIR/run-nebula.R" --path @ --covs "$COVS" --id-col "$ID_COL" --offset-col nUMI_nebula --n-cores 1 --out-dir "$tmp_de_dir" "$suffix_str" $filter_str \
     | parallel --line-buffer -j "${N_CORES}"
 else
   find "$chunks_dir" -maxdepth 1 -type f -name "chunk_*.qs" -print0 \
-    | xargs -0 -I @ echo Rscript "$SCRIPT_DIR/run-nebula.R" --path @ --id-col "$ID_COL" --offset-col nUMI_nebula --n-cores 1 --out-dir "$tmp_de_dir" "$suffix_str" \
+    | xargs -0 -I @ echo Rscript "$SCRIPT_DIR/run-nebula.R" --path @ --id-col "$ID_COL" --offset-col nUMI_nebula --n-cores 1 --out-dir "$tmp_de_dir" "$suffix_str" $filter_str \
     | parallel --line-buffer -j "${N_CORES}"
 fi
 
